@@ -27,7 +27,7 @@ public sealed class CreateControlRequestValidatorTests
     }
 
     [Fact]
-    public async Task Should_RejectCreateControl_When_OrganizationIdIsEmpty()
+    public async Task Should_AllowCreateControl_When_OrganizationIdIsEmpty()
     {
         var request = new CreateControlRequest
         {
@@ -41,7 +41,7 @@ public sealed class CreateControlRequestValidatorTests
 
         var result = await _validator.ValidateAsync(request);
 
-        Assert.Contains(result.Errors, error => error.PropertyName == nameof(CreateControlRequest.OrganizationId));
+        Assert.DoesNotContain(result.Errors, error => error.PropertyName == nameof(CreateControlRequest.OrganizationId));
     }
 
     [Fact]

@@ -5,8 +5,9 @@ This document provides additional notes on the security posture of the AuditAI p
 ## 1. Authentication (JWT)
 
 *   **Current status**: Minimal JWT login is implemented through `POST /api/auth/login`.
-*   **Current limitation**: Existing business endpoints are still anonymous for now because endpoint protection is a separate next step.
-*   **Audit log implication**: Audit logs still do not resolve the actor from the authenticated user yet. Some entries still use request payload user ids where available, and other actions store `null` for the actor.
+*   **Current rollout stage**: Only the Controls endpoints are protected right now. Other business endpoints are intentionally still anonymous during the staged rollout.
+*   **Tenant implication**: Controls access is scoped by `org_id` from the JWT, not by request-supplied organization ids.
+*   **Audit log implication**: Controls audit logs now resolve `UserId` from the authenticated actor. Other slices still use the previous behavior until they are migrated.
 *   **Design reference**: See [docs/auth-design.md](/home/kai/projects/auditai/docs/auth-design.md) for the recommended implementation plan.
 
 ## 2. Authorization (Role-Based)

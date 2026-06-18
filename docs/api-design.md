@@ -128,7 +128,10 @@ Current authentication behavior:
 *   `POST /api/auth/login` returns an access token and token expiration on valid credentials.
 *   Invalid login credentials return `401 Unauthorized`.
 *   Malformed login requests still return `400 Bad Request`.
-*   Existing business endpoints are not protected yet in the current slice.
+*   Controls endpoints currently require a bearer token.
+*   Controls organization scope comes from JWT `org_id`, even if request or query payloads still contain organization fields for compatibility.
+*   Audit logs for Controls now use the authenticated actor.
+*   Evidence, AuditFindings, ActionPlans, and AuditLogs endpoints are still anonymous in the current staged rollout.
 *   No refresh token, cookie auth, public registration, or password reset flow exists yet.
 
 ## 9. API Behavior for Future AI Endpoints

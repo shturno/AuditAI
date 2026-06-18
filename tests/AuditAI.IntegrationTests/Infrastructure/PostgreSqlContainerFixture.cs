@@ -1,11 +1,14 @@
 using AuditAI.Domain.Entities;
 using AuditAI.Domain.Enums;
+using AuditAI.Application.Auth.Contracts;
 using AuditAI.Infrastructure.Auth.PasswordHashing;
 using AuditAI.Infrastructure.Persistence;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Json;
 using Testcontainers.PostgreSql;
 
 namespace AuditAI.IntegrationTests.Infrastructure;
@@ -24,7 +27,40 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
 
     internal CustomWebApplicationFactory Factory { get; private set; } = null!;
 
-    public HttpClient Client => _client ??= Factory.CreateClient();
+    public HttpClient Client => _client ??= CreateClient();
+
+    public async Task<HttpClient> CreateAuthenticatedClientAsync(
+        string email = TestData.UserEmail,
+        string password = TestData.UserPassword)
+    {
+        var client = CreateClient();
+        var response = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Email = email,
+            Password = password
+        });
+
+        response.EnsureSuccessStatusCode();
+
+        var loginResponse = await response.Content.ReadFromJsonAsync<LoginResponse>();
+        if (loginResponse is null)
+        {
+            throw new InvalidOperationException("Login response was not returned.");
+        }
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", loginResponse.AccessToken);
+
+        return client;
+    }
+
+    private HttpClient CreateClient()
+    {
+        return Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+    }
 
     public async Task InitializeAsync()
     {
@@ -67,8 +103,8 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
             TestData.OtherOrganizationId,
             TestData.OtherDepartmentId,
             "Other User",
-            "other@auditai.test",
-            passwordHasher.HashPassword("OtherPassword123!"),
+            TestData.OtherUserEmail,
+            passwordHasher.HashPassword(TestData.OtherUserPassword),
             UserRole.Auditor,
             TestData.SeedTimestamp);
         var control = Control.Create(

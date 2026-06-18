@@ -95,7 +95,7 @@ public sealed class AuthApiTests
     {
         await _fixture.ResetDatabaseAsync();
 
-        var response = await _fixture.Client.GetAsync($"/api/controls/{TestData.ControlId}");
+        var response = await _fixture.Client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

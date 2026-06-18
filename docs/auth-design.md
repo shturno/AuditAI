@@ -11,6 +11,10 @@ Implemented now:
 * custom JWT login using the existing `User` entity
 * `password_hash` persisted on `users`
 * `POST /api/auth/login`
+* `ICurrentUser` resolved from JWT claims
+* Controls endpoints protected with JWT
+* Controls organization scope resolved from `org_id`
+* Controls audit logs now use the authenticated actor
 
 Not implemented yet:
 
@@ -20,8 +24,8 @@ Not implemented yet:
 * password reset
 * MFA
 * external providers
-* protection of existing business endpoints
-* authenticated actor resolution for `AuditLog`
+* protection of all existing business endpoints
+* authenticated actor resolution for non-Control audit slices
 
 ## 1. Recommendation
 
@@ -129,10 +133,10 @@ API now provides:
 
 * JWT bearer setup
 * `/api/auth/login`
+* HTTP current-user resolution from claims for protected slices
 
 API later should provide:
-
-* HTTP-based `ICurrentUser` implementation reading claims from `HttpContext.User`
+* broader use of the current-user context across the remaining slices
 
 ## 4. Planned Use Cases
 
@@ -181,6 +185,7 @@ Current token behavior:
 
 * short-lived access token
 * no refresh tokens
+* current protected Controls behavior uses `org_id` as the tenant boundary
 
 ## 6. Authorization Plan
 
@@ -285,6 +290,7 @@ Current implementation and future work should follow these rules:
 * do not include secrets in claims
 * serve authenticated APIs over HTTPS in real deployment
 * do not fake current-user resolution in production code
+* stage endpoint protection slice by slice instead of flipping the whole API at once
 
 Implemented hashing approach:
 
@@ -321,10 +327,9 @@ Recommended test layering:
 
 Recommended next implementation order:
 
-1. Introduce `ICurrentUser` in business services.
-2. Stop trusting actor ids from request contracts where actor should be the authenticated user.
-3. Protect selected endpoints.
-4. Add role and organization enforcement incrementally.
-5. Consider `is_active` if user deactivation becomes necessary.
+1. Stop trusting actor ids from request contracts where actor should be the authenticated user.
+2. Extend authenticated organization scoping to Evidence, AuditFindings, and ActionPlans.
+3. Add role and organization enforcement incrementally.
+4. Consider `is_active` if user deactivation becomes necessary.
 
 This order minimizes disruption and lets the team validate the auth foundation before RBAC and tenant authorization spread across all slices.

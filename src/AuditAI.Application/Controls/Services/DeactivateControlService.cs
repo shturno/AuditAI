@@ -12,15 +12,18 @@ namespace AuditAI.Application.Controls.Services;
 public sealed class DeactivateControlService
 {
     private readonly IControlRepository _controlRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
 
     public DeactivateControlService(
         IControlRepository controlRepository,
+        ICurrentUser currentUser,
         IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider)
     {
         _controlRepository = controlRepository;
+        _currentUser = currentUser;
         _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
     }
@@ -29,8 +32,13 @@ public sealed class DeactivateControlService
         Guid controlId,
         CancellationToken cancellationToken = default)
     {
+        if (!ControlsCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<ControlResponse>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
         var control = await _controlRepository.GetByIdForUpdateAsync(controlId, cancellationToken);
-        if (control is null)
+        if (control is null || control.OrganizationId != organizationId)
         {
             return Result<ControlResponse>.NotFound("Control was not found.");
         }
@@ -39,7 +47,7 @@ public sealed class DeactivateControlService
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
                 control.OrganizationId,
-                null,
+                userId,
                 AuditAI.Domain.Enums.AuditLogAction.ControlDeactivated,
                 nameof(AuditAI.Domain.Entities.Control),
                 control.Id,

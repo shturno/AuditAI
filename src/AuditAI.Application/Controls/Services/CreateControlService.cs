@@ -15,6 +15,7 @@ namespace AuditAI.Application.Controls.Services;
 public sealed class CreateControlService
 {
     private readonly IControlRepository _controlRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IOrganizationLookup _organizationLookup;
     private readonly IDepartmentLookup _departmentLookup;
     private readonly IAuditLogWriter _auditLogWriter;
@@ -23,6 +24,7 @@ public sealed class CreateControlService
 
     public CreateControlService(
         IControlRepository controlRepository,
+        ICurrentUser currentUser,
         IOrganizationLookup organizationLookup,
         IDepartmentLookup departmentLookup,
         IAuditLogWriter auditLogWriter,
@@ -30,6 +32,7 @@ public sealed class CreateControlService
         IValidator<CreateControlRequest> validator)
     {
         _controlRepository = controlRepository;
+        _currentUser = currentUser;
         _organizationLookup = organizationLookup;
         _departmentLookup = departmentLookup;
         _auditLogWriter = auditLogWriter;
@@ -41,14 +44,24 @@ public sealed class CreateControlService
         CreateControlRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!ControlsCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<ControlResponse>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             return Result<ControlResponse>.ValidationFailure(validationResult.ToValidationErrors());
         }
 
+        if (!await _organizationLookup.OrganizationExistsAsync(organizationId, cancellationToken))
+        {
+            return Result<ControlResponse>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
         var referenceErrors = await ControlOrganizationValidation.ValidateAsync(
-            request.OrganizationId,
+            organizationId,
             request.DepartmentId,
             _organizationLookup,
             _departmentLookup,
@@ -60,7 +73,7 @@ public sealed class CreateControlService
         }
 
         if (await _controlRepository.ExistsWithCodeAsync(
-                request.OrganizationId,
+                organizationId,
                 request.Code.Trim(),
                 null,
                 cancellationToken))
@@ -72,7 +85,7 @@ public sealed class CreateControlService
 
         var control = AuditControl.Create(
             Guid.NewGuid(),
-            request.OrganizationId,
+            organizationId,
             request.DepartmentId,
             request.Code,
             request.Category,
@@ -84,8 +97,8 @@ public sealed class CreateControlService
         await _controlRepository.AddAsync(control, cancellationToken);
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
-                request.OrganizationId,
-                null,
+                organizationId,
+                userId,
                 AuditAI.Domain.Enums.AuditLogAction.ControlCreated,
                 nameof(AuditAI.Domain.Entities.Control),
                 control.Id,

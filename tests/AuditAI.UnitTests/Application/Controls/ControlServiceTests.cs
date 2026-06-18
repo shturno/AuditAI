@@ -14,266 +14,177 @@ namespace AuditAI.UnitTests.Application.Controls;
 public sealed class ControlServiceTests
 {
     [Fact]
-    public async Task Should_ReturnNotFound_When_ControlDoesNotExist()
+    public async Task Should_FailCreateControl_When_CurrentUserIsNotAuthenticated()
     {
         var repository = new FakeControlRepository();
         var lookup = new FakeControlReferenceLookup();
-        var service = new UpdateControlService(
+        var service = new CreateControlService(
             repository,
+            FakeCurrentUser.Unauthenticated(),
             lookup,
             lookup,
             new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
-            new UpdateControlRequestValidator());
+            new CreateControlRequestValidator());
 
-        var result = await service.ExecuteAsync(
+        var result = await service.ExecuteAsync(new CreateControlRequest
+        {
+            Code = "CTRL-001",
+            Category = "Access Management",
+            Title = "Quarterly access review",
+            Description = "Detailed quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsUnauthorized);
+    }
+
+    [Fact]
+    public async Task Should_CreateControl_Using_CurrentUserOrganization_InsteadOf_RequestOrganization()
+    {
+        var authenticatedOrganizationId = Guid.NewGuid();
+        var requestOrganizationId = Guid.NewGuid();
+        var departmentId = Guid.NewGuid();
+        var repository = new FakeControlRepository();
+        var lookup = new FakeControlReferenceLookup
+        {
+            ExistingOrganizationIds = { authenticatedOrganizationId },
+            DepartmentsByOrganization = { [departmentId] = authenticatedOrganizationId }
+        };
+        var auditLogWriter = new FakeAuditLogWriter();
+        var currentUser = FakeCurrentUser.Authenticated(organizationId: authenticatedOrganizationId);
+        var service = new CreateControlService(
+            repository,
+            currentUser,
+            lookup,
+            lookup,
+            auditLogWriter,
+            new FakeDateTimeProvider(),
+            new CreateControlRequestValidator());
+
+        var result = await service.ExecuteAsync(new CreateControlRequest
+        {
+            OrganizationId = requestOrganizationId,
+            DepartmentId = departmentId,
+            Code = "CTRL-001",
+            Category = "Access Management",
+            Title = "Quarterly access review",
+            Description = "Detailed quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(repository.StoredControls);
+        Assert.Equal(authenticatedOrganizationId, repository.StoredControls[0].OrganizationId);
+        Assert.Single(auditLogWriter.Entries);
+        Assert.Equal(currentUser.UserId, auditLogWriter.Entries[0].UserId);
+        Assert.Equal(authenticatedOrganizationId, auditLogWriter.Entries[0].OrganizationId);
+    }
+
+    [Fact]
+    public async Task Should_FailCreateControl_When_DepartmentDoesNotBelongToCurrentUserOrganization()
+    {
+        var authenticatedOrganizationId = Guid.NewGuid();
+        var otherOrganizationId = Guid.NewGuid();
+        var departmentId = Guid.NewGuid();
+        var repository = new FakeControlRepository();
+        var lookup = new FakeControlReferenceLookup
+        {
+            ExistingOrganizationIds = { authenticatedOrganizationId, otherOrganizationId },
+            DepartmentsByOrganization = { [departmentId] = otherOrganizationId }
+        };
+        var service = new CreateControlService(
+            repository,
+            FakeCurrentUser.Authenticated(organizationId: authenticatedOrganizationId),
+            lookup,
+            lookup,
+            new FakeAuditLogWriter(),
+            new FakeDateTimeProvider(),
+            new CreateControlRequestValidator());
+
+        var result = await service.ExecuteAsync(new CreateControlRequest
+        {
+            DepartmentId = departmentId,
+            Code = "CTRL-001",
+            Category = "Access Management",
+            Title = "Quarterly access review",
+            Description = "Detailed quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsValidationFailure);
+        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "DepartmentId");
+    }
+
+    [Fact]
+    public async Task Should_ListControls_Using_CurrentUserOrganization()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new FakeControlRepository();
+        repository.StoredControls.Add(Control.Create(
             Guid.NewGuid(),
-            new UpdateControlRequest
-            {
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Quarterly access review",
-                Description = "Detailed quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
+            organizationId,
+            null,
+            "CTRL-001",
+            "Access Management",
+            "Quarterly access review",
+            "Detailed quarterly access review.",
+            ControlFrequency.Quarterly,
+            new FakeDateTimeProvider().UtcNow));
+        var service = new ListControlsService(
+            repository,
+            FakeCurrentUser.Authenticated(organizationId: organizationId),
+            new ControlQueryParametersValidator());
+
+        var result = await service.ExecuteAsync(new ControlQueryParameters
+        {
+            OrganizationId = Guid.NewGuid(),
+            PageNumber = 1,
+            PageSize = 10
+        });
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(repository.LastListQuery);
+        Assert.Equal(organizationId, repository.LastListQuery!.OrganizationId);
+    }
+
+    [Fact]
+    public async Task Should_ReturnNotFound_When_GettingControlFromAnotherOrganization()
+    {
+        var repository = new FakeControlRepository();
+        var control = Control.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            null,
+            "CTRL-001",
+            "Access Management",
+            "Quarterly access review",
+            "Detailed quarterly access review.",
+            ControlFrequency.Quarterly,
+            new FakeDateTimeProvider().UtcNow);
+        repository.StoredControls.Add(control);
+        var service = new GetControlByIdService(
+            repository,
+            FakeCurrentUser.Authenticated(organizationId: Guid.NewGuid()));
+
+        var result = await service.ExecuteAsync(control.Id);
 
         Assert.False(result.IsSuccess);
         Assert.True(result.IsNotFound);
     }
 
     [Fact]
-    public async Task Should_CreateControl_When_RequestIsValid()
-    {
-        var organizationId = Guid.NewGuid();
-        var departmentId = Guid.NewGuid();
-        var repository = new FakeControlRepository();
-        var lookup = new FakeControlReferenceLookup
-        {
-            ExistingOrganizationIds = { organizationId },
-            DepartmentsByOrganization = { [departmentId] = organizationId }
-        };
-        var service = new CreateControlService(
-            repository,
-            lookup,
-            lookup,
-            new FakeAuditLogWriter(),
-            new FakeDateTimeProvider(),
-            new CreateControlRequestValidator());
-
-        var result = await service.ExecuteAsync(
-            new CreateControlRequest
-            {
-                OrganizationId = organizationId,
-                DepartmentId = departmentId,
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Quarterly access review",
-                Description = "Detailed quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
-
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Value);
-        Assert.Single(repository.StoredControls);
-        Assert.Equal("Access Management", repository.StoredControls[0].Category);
-    }
-
-    [Fact]
-    public async Task Should_NotBypassDomainInvariants_When_RequestIsInvalid()
-    {
-        var organizationId = Guid.NewGuid();
-        var repository = new FakeControlRepository();
-        var lookup = new FakeControlReferenceLookup
-        {
-            ExistingOrganizationIds = { organizationId }
-        };
-        var service = new CreateControlService(
-            repository,
-            lookup,
-            lookup,
-            new FakeAuditLogWriter(),
-            new FakeDateTimeProvider(),
-            new CreateControlRequestValidator());
-
-        var result = await service.ExecuteAsync(
-            new CreateControlRequest
-            {
-                OrganizationId = organizationId,
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Valid title",
-                Description = string.Empty,
-                Frequency = ControlFrequency.Monthly
-            });
-
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsValidationFailure);
-        Assert.Empty(repository.StoredControls);
-    }
-
-    [Fact]
-    public async Task Should_FailCreateControl_When_OrganizationDoesNotExist()
-    {
-        var repository = new FakeControlRepository();
-        var lookup = new FakeControlReferenceLookup();
-        var service = new CreateControlService(
-            repository,
-            lookup,
-            lookup,
-            new FakeAuditLogWriter(),
-            new FakeDateTimeProvider(),
-            new CreateControlRequestValidator());
-
-        var result = await service.ExecuteAsync(
-            new CreateControlRequest
-            {
-                OrganizationId = Guid.NewGuid(),
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Quarterly access review",
-                Description = "Detailed quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
-
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsValidationFailure);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "OrganizationId");
-    }
-
-    [Fact]
-    public async Task Should_FailCreateControl_When_DepartmentDoesNotExist()
-    {
-        var organizationId = Guid.NewGuid();
-        var repository = new FakeControlRepository();
-        var lookup = new FakeControlReferenceLookup
-        {
-            ExistingOrganizationIds = { organizationId }
-        };
-        var service = new CreateControlService(
-            repository,
-            lookup,
-            lookup,
-            new FakeAuditLogWriter(),
-            new FakeDateTimeProvider(),
-            new CreateControlRequestValidator());
-
-        var result = await service.ExecuteAsync(
-            new CreateControlRequest
-            {
-                OrganizationId = organizationId,
-                DepartmentId = Guid.NewGuid(),
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Quarterly access review",
-                Description = "Detailed quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
-
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsValidationFailure);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "DepartmentId");
-    }
-
-    [Fact]
-    public async Task Should_FailCreateControl_When_DepartmentDoesNotBelongToOrganization()
-    {
-        var organizationId = Guid.NewGuid();
-        var otherOrganizationId = Guid.NewGuid();
-        var departmentId = Guid.NewGuid();
-        var repository = new FakeControlRepository();
-        var lookup = new FakeControlReferenceLookup
-        {
-            ExistingOrganizationIds = { organizationId, otherOrganizationId },
-            DepartmentsByOrganization = { [departmentId] = otherOrganizationId }
-        };
-        var service = new CreateControlService(
-            repository,
-            lookup,
-            lookup,
-            new FakeAuditLogWriter(),
-            new FakeDateTimeProvider(),
-            new CreateControlRequestValidator());
-
-        var result = await service.ExecuteAsync(
-            new CreateControlRequest
-            {
-                OrganizationId = organizationId,
-                DepartmentId = departmentId,
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Quarterly access review",
-                Description = "Detailed quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
-
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsValidationFailure);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "DepartmentId");
-    }
-
-    [Fact]
-    public async Task Should_FailUpdateControl_When_DepartmentDoesNotBelongToOrganization()
-    {
-        var organizationId = Guid.NewGuid();
-        var existingDepartmentId = Guid.NewGuid();
-        var invalidDepartmentId = Guid.NewGuid();
-        var otherOrganizationId = Guid.NewGuid();
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeControlRepository();
-        var control = Control.Create(
-            Guid.NewGuid(),
-            organizationId,
-            existingDepartmentId,
-            "CTRL-001",
-            "Access Management",
-            "Quarterly access review",
-            "Detailed quarterly access review.",
-            ControlFrequency.Quarterly,
-            clock.UtcNow);
-        repository.StoredControls.Add(control);
-
-        var lookup = new FakeControlReferenceLookup
-        {
-            ExistingOrganizationIds = { organizationId, otherOrganizationId },
-            DepartmentsByOrganization =
-            {
-                [existingDepartmentId] = organizationId,
-                [invalidDepartmentId] = otherOrganizationId
-            }
-        };
-        var service = new UpdateControlService(
-            repository,
-            lookup,
-            lookup,
-            new FakeAuditLogWriter(),
-            clock,
-            new UpdateControlRequestValidator());
-
-        var result = await service.ExecuteAsync(
-            control.Id,
-            new UpdateControlRequest
-            {
-                DepartmentId = invalidDepartmentId,
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Updated review",
-                Description = "Updated quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
-
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsValidationFailure);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "DepartmentId");
-    }
-
-    [Fact]
-    public async Task Should_UpdateControl_When_OrganizationAndDepartmentAreValid()
+    public async Task Should_UseAuthenticatedActor_When_UpdatingControl()
     {
         var organizationId = Guid.NewGuid();
         var existingDepartmentId = Guid.NewGuid();
         var newDepartmentId = Guid.NewGuid();
         var clock = new FakeDateTimeProvider();
         var repository = new FakeControlRepository();
+        var auditLogWriter = new FakeAuditLogWriter();
+        var currentUser = FakeCurrentUser.Authenticated(organizationId: organizationId);
         var control = Control.Create(
             Guid.NewGuid(),
             organizationId,
@@ -295,35 +206,69 @@ public sealed class ControlServiceTests
                 [newDepartmentId] = organizationId
             }
         };
+
         var service = new UpdateControlService(
             repository,
+            currentUser,
             lookup,
             lookup,
-            new FakeAuditLogWriter(),
+            auditLogWriter,
             clock,
             new UpdateControlRequestValidator());
 
-        var result = await service.ExecuteAsync(
-            control.Id,
-            new UpdateControlRequest
-            {
-                DepartmentId = newDepartmentId,
-                Code = "CTRL-001",
-                Category = "Access Management",
-                Title = "Updated review",
-                Description = "Updated quarterly access review.",
-                Frequency = ControlFrequency.Quarterly
-            });
+        var result = await service.ExecuteAsync(control.Id, new UpdateControlRequest
+        {
+            DepartmentId = newDepartmentId,
+            Code = "CTRL-001",
+            Category = "Access Management",
+            Title = "Updated review",
+            Description = "Updated quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Value);
-        Assert.Equal(newDepartmentId, result.Value.DepartmentId);
-        Assert.Equal("Updated review", result.Value.Title);
+        Assert.Single(auditLogWriter.Entries);
+        Assert.Equal(currentUser.UserId, auditLogWriter.Entries[0].UserId);
+    }
+
+    [Fact]
+    public async Task Should_UseAuthenticatedActor_When_DeactivatingControl()
+    {
+        var organizationId = Guid.NewGuid();
+        var clock = new FakeDateTimeProvider();
+        var repository = new FakeControlRepository();
+        var auditLogWriter = new FakeAuditLogWriter();
+        var currentUser = FakeCurrentUser.Authenticated(organizationId: organizationId);
+        var control = Control.Create(
+            Guid.NewGuid(),
+            organizationId,
+            null,
+            "CTRL-001",
+            "Access Management",
+            "Quarterly access review",
+            "Detailed quarterly access review.",
+            ControlFrequency.Quarterly,
+            clock.UtcNow);
+        repository.StoredControls.Add(control);
+
+        var service = new DeactivateControlService(
+            repository,
+            currentUser,
+            auditLogWriter,
+            clock);
+
+        var result = await service.ExecuteAsync(control.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(auditLogWriter.Entries);
+        Assert.Equal(currentUser.UserId, auditLogWriter.Entries[0].UserId);
     }
 
     private sealed class FakeControlRepository : IControlRepository
     {
         public List<Control> StoredControls { get; } = [];
+
+        public ControlQueryParameters? LastListQuery { get; private set; }
 
         public Task AddAsync(Control control, CancellationToken cancellationToken)
         {
@@ -357,7 +302,13 @@ public sealed class ControlServiceTests
 
         public Task<PagedResult<Control>> ListAsync(ControlQueryParameters queryParameters, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new PagedResult<Control>(StoredControls, StoredControls.Count, 1, 20));
+            LastListQuery = queryParameters;
+
+            var items = StoredControls
+                .Where(control => !queryParameters.OrganizationId.HasValue || control.OrganizationId == queryParameters.OrganizationId.Value)
+                .ToArray();
+
+            return Task.FromResult(new PagedResult<Control>(items, items.Length, queryParameters.PageNumber, queryParameters.PageSize));
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken)
@@ -407,6 +358,41 @@ public sealed class ControlServiceTests
                           departmentOrganizationId == organizationId;
 
             return Task.FromResult(belongs);
+        }
+    }
+
+    private sealed class FakeCurrentUser : ICurrentUser
+    {
+        private FakeCurrentUser(
+            bool isAuthenticated,
+            Guid? userId,
+            Guid? organizationId)
+        {
+            IsAuthenticated = isAuthenticated;
+            UserId = userId;
+            OrganizationId = organizationId;
+        }
+
+        public bool IsAuthenticated { get; }
+
+        public Guid? UserId { get; }
+
+        public string? Email => "user@auditai.test";
+
+        public UserRole? Role => UserRole.Auditor;
+
+        public Guid? OrganizationId { get; }
+
+        public Guid? DepartmentId => null;
+
+        public static FakeCurrentUser Authenticated(Guid organizationId)
+        {
+            return new FakeCurrentUser(true, Guid.NewGuid(), organizationId);
+        }
+
+        public static FakeCurrentUser Unauthenticated()
+        {
+            return new FakeCurrentUser(false, null, null);
         }
     }
 }

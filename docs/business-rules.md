@@ -94,10 +94,12 @@ This document outlines the core business rules, entities, and workflows for the 
 *   The Domain layer enforces entity-level invariants and status transition rules.
 *   The Application layer is responsible for authentication, authorization, loading related entities, and validating that related records belong to the same organization when that requires persistence lookups.
 *   Organization and Department existence checks for Control create/update are Application-layer orchestration rules, not Domain rules.
+*   Authenticated Control operations derive the effective organization from the current JWT `org_id` claim, not from request-supplied organization ids.
+*   Cross-tenant Control access should return `NotFound` instead of disclosing that a record exists in another organization.
 *   Control/User existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
 *   Control/User existence checks and organization consistency for Audit Finding creation are Application-layer orchestration rules, not Domain rules.
 *   Audit Finding/User existence checks and organization consistency for Action Plan create/update are Application-layer orchestration rules, not Domain rules.
-*   Authenticated tenant authorization is future work and is not implemented yet.
+*   Authenticated tenant authorization is currently implemented only for the Controls slice. Other slices are still on the staged rollout path.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
 *   Actor resolution for `AuditLog.UserId` is partial before authentication exists: some flows use user ids already present in requests, while other flows currently persist `null`.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.

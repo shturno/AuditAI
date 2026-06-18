@@ -82,11 +82,11 @@ public sealed class ControlsControllerTests
         var lookup = new FakeControlReferenceLookup();
 
         return new ControlsController(
-            new CreateControlService(repository, lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new CreateControlRequestValidator()),
-            new GetControlByIdService(repository),
-            new ListControlsService(repository, new ControlQueryParametersValidator()),
-            new UpdateControlService(repository, lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new UpdateControlRequestValidator()),
-            new DeactivateControlService(repository, new FakeAuditLogWriter(), dateTimeProvider));
+            new CreateControlService(repository, FakeCurrentUser.Authenticated(), lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new CreateControlRequestValidator()),
+            new GetControlByIdService(repository, FakeCurrentUser.Authenticated()),
+            new ListControlsService(repository, FakeCurrentUser.Authenticated(), new ControlQueryParametersValidator()),
+            new UpdateControlService(repository, FakeCurrentUser.Authenticated(), lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new UpdateControlRequestValidator()),
+            new DeactivateControlService(repository, FakeCurrentUser.Authenticated(), new FakeAuditLogWriter(), dateTimeProvider));
     }
 
     private sealed class FakeControlRepository : IControlRepository
@@ -180,6 +180,34 @@ public sealed class ControlsControllerTests
                           departmentOrganizationId == organizationId;
 
             return Task.FromResult(belongs);
+        }
+    }
+
+    private sealed class FakeCurrentUser : ICurrentUser
+    {
+        private FakeCurrentUser(Guid userId, Guid organizationId)
+        {
+            UserId = userId;
+            OrganizationId = organizationId;
+        }
+
+        public bool IsAuthenticated => true;
+
+        public Guid? UserId { get; }
+
+        public string? Email => "user@auditai.test";
+
+        public UserRole? Role => UserRole.Auditor;
+
+        public Guid? OrganizationId { get; }
+
+        public Guid? DepartmentId => null;
+
+        public static FakeCurrentUser Authenticated()
+        {
+            return new FakeCurrentUser(
+                Guid.Parse("55555555-5555-5555-5555-555555555555"),
+                Guid.Parse("11111111-1111-1111-1111-111111111111"));
         }
     }
 }

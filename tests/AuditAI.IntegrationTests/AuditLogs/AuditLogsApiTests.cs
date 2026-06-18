@@ -179,7 +179,9 @@ public sealed class AuditLogsApiTests
 
     private async Task<ControlResponse> CreateControlAsync(string code)
     {
-        var response = await _fixture.Client.PostAsJsonAsync("/api/controls", new CreateControlRequest
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/controls", new CreateControlRequest
         {
             OrganizationId = TestData.OrganizationId,
             DepartmentId = TestData.DepartmentId,

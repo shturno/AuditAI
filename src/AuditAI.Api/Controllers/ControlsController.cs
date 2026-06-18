@@ -1,10 +1,12 @@
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Controls.Contracts;
 using AuditAI.Application.Controls.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuditAI.Api.Controllers;
 
+[Authorize]
 [Route("api/controls")]
 [Tags("Controls")]
 public sealed class ControlsController : ApiControllerBase

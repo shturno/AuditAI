@@ -14,6 +14,7 @@ namespace AuditAI.Application.Controls.Services;
 public sealed class UpdateControlService
 {
     private readonly IControlRepository _controlRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IOrganizationLookup _organizationLookup;
     private readonly IDepartmentLookup _departmentLookup;
     private readonly IAuditLogWriter _auditLogWriter;
@@ -22,6 +23,7 @@ public sealed class UpdateControlService
 
     public UpdateControlService(
         IControlRepository controlRepository,
+        ICurrentUser currentUser,
         IOrganizationLookup organizationLookup,
         IDepartmentLookup departmentLookup,
         IAuditLogWriter auditLogWriter,
@@ -29,6 +31,7 @@ public sealed class UpdateControlService
         IValidator<UpdateControlRequest> validator)
     {
         _controlRepository = controlRepository;
+        _currentUser = currentUser;
         _organizationLookup = organizationLookup;
         _departmentLookup = departmentLookup;
         _auditLogWriter = auditLogWriter;
@@ -41,6 +44,11 @@ public sealed class UpdateControlService
         UpdateControlRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!ControlsCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<ControlResponse>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
@@ -48,7 +56,7 @@ public sealed class UpdateControlService
         }
 
         var control = await _controlRepository.GetByIdForUpdateAsync(controlId, cancellationToken);
-        if (control is null)
+        if (control is null || control.OrganizationId != organizationId)
         {
             return Result<ControlResponse>.NotFound("Control was not found.");
         }
@@ -89,7 +97,7 @@ public sealed class UpdateControlService
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
                 control.OrganizationId,
-                null,
+                userId,
                 AuditAI.Domain.Enums.AuditLogAction.ControlUpdated,
                 nameof(AuditAI.Domain.Entities.Control),
                 control.Id,

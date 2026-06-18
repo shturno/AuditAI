@@ -8,6 +8,7 @@ using AuditAI.Application.ActionPlans.Validators;
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Services;
 using AuditAI.Application.AuditFindings.Validators;
+using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Controls.Contracts;
 using AuditAI.Application.Controls.Interfaces;
@@ -32,7 +33,8 @@ public sealed class AuditLogServiceTests
         var repository = new FakeControlRepository();
         var lookup = new FakeControlLookup { ExistingOrganizationIds = { organizationId } };
         var writer = new FakeAuditLogWriter();
-        var service = new CreateControlService(repository, lookup, lookup, writer, new FakeDateTimeProvider(), new CreateControlRequestValidator());
+        var currentUser = new FakeCurrentUser(Guid.NewGuid(), organizationId);
+        var service = new CreateControlService(repository, currentUser, lookup, lookup, writer, new FakeDateTimeProvider(), new CreateControlRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateControlRequest
         {
@@ -54,7 +56,7 @@ public sealed class AuditLogServiceTests
         var repository = new FakeControlRepository();
         var lookup = new FakeControlLookup();
         var writer = new FakeAuditLogWriter();
-        var service = new CreateControlService(repository, lookup, lookup, writer, new FakeDateTimeProvider(), new CreateControlRequestValidator());
+        var service = new CreateControlService(repository, FakeCurrentUser.Unauthenticated(), lookup, lookup, writer, new FakeDateTimeProvider(), new CreateControlRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateControlRequest
         {
@@ -327,5 +329,35 @@ public sealed class AuditLogServiceTests
     private sealed class FakeDateTimeProvider : AuditAI.Application.Common.Abstractions.IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakeCurrentUser : ICurrentUser
+    {
+        public FakeCurrentUser(Guid userId, Guid organizationId)
+        {
+            UserId = userId;
+            OrganizationId = organizationId;
+        }
+
+        private FakeCurrentUser()
+        {
+        }
+
+        public bool IsAuthenticated => UserId.HasValue && OrganizationId.HasValue;
+
+        public Guid? UserId { get; }
+
+        public string? Email => "user@auditai.test";
+
+        public UserRole? Role => UserRole.Auditor;
+
+        public Guid? OrganizationId { get; }
+
+        public Guid? DepartmentId => null;
+
+        public static FakeCurrentUser Unauthenticated()
+        {
+            return new FakeCurrentUser();
+        }
     }
 }

@@ -18,6 +18,10 @@ internal static class TestData
 
     public const string UserPassword = "P@ssword123!";
 
+    public const string OtherUserEmail = "other@auditai.test";
+
+    public const string OtherUserPassword = "OtherPassword123!";
+
     public static readonly Guid ControlId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
     public static readonly Guid OtherControlId = Guid.Parse("88888888-8888-8888-8888-888888888888");

@@ -7,9 +7,6 @@ public sealed class CreateControlRequestValidator : AbstractValidator<CreateCont
 {
     public CreateControlRequestValidator()
     {
-        RuleFor(x => x.OrganizationId)
-            .NotEmpty();
-
         RuleFor(x => x.Code)
             .NotEmpty()
             .MaximumLength(100);

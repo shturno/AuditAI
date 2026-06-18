@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
-using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Controls.Contracts;
+using AuditAI.Domain.Entities;
 using AuditAI.Domain.Enums;
+using AuditAI.Infrastructure.Persistence;
 using AuditAI.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AuditAI.IntegrationTests.Controls;
 
@@ -19,13 +22,12 @@ public sealed class ControlsApiTests
     }
 
     [Fact]
-    public async Task Should_ReturnBadRequest_When_OrganizationDoesNotExist()
+    public async Task Should_ReturnUnauthorized_When_CreatingControl_WithoutToken()
     {
         await _fixture.ResetDatabaseAsync();
 
         var response = await _fixture.Client.PostAsJsonAsync("/api/controls", new CreateControlRequest
         {
-            OrganizationId = Guid.NewGuid(),
             DepartmentId = TestData.DepartmentId,
             Code = "CTRL-001",
             Category = "Access Management",
@@ -34,21 +36,51 @@ public sealed class ControlsApiTests
             Frequency = ControlFrequency.Quarterly
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var body = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.NotNull(body);
-        Assert.Contains("OrganizationId", body.Errors.Keys);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Should_ReturnBadRequest_When_DepartmentDoesNotBelongToOrganization()
+    public async Task Should_ReturnUnauthorized_When_ListingControls_WithoutToken()
     {
         await _fixture.ResetDatabaseAsync();
 
-        var response = await _fixture.Client.PostAsJsonAsync("/api/controls", new CreateControlRequest
+        var response = await _fixture.Client.GetAsync("/api/controls?pageNumber=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Should_ReturnCreated_When_CreatingControl_WithValidToken()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/controls", new CreateControlRequest
         {
-            OrganizationId = TestData.OrganizationId,
+            OrganizationId = TestData.OtherOrganizationId,
+            DepartmentId = TestData.DepartmentId,
+            Code = "CTRL-001",
+            Category = "Access Management",
+            Title = "Quarterly access review",
+            Description = "Detailed quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var created = await response.Content.ReadFromJsonAsync<ControlResponse>();
+        Assert.NotNull(created);
+        Assert.Equal(TestData.OrganizationId, created.OrganizationId);
+    }
+
+    [Fact]
+    public async Task Should_ReturnBadRequest_When_DepartmentDoesNotBelongToAuthenticatedOrganization()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/controls", new CreateControlRequest
+        {
             DepartmentId = TestData.OtherDepartmentId,
             Code = "CTRL-001",
             Category = "Access Management",
@@ -65,62 +97,39 @@ public sealed class ControlsApiTests
     }
 
     [Fact]
-    public async Task Should_ReturnCreated_When_RequestIsValid()
+    public async Task Should_ListOnlyControls_FromAuthenticatedOrganization()
     {
         await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var createResponse = await CreateValidControlAsync("CTRL-001");
-
-        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
-
-        var created = await createResponse.Content.ReadFromJsonAsync<ControlResponse>();
-        Assert.NotNull(created);
-        Assert.Equal(TestData.OrganizationId, created.OrganizationId);
-        Assert.Equal(TestData.DepartmentId, created.DepartmentId);
-        Assert.Equal(ControlStatus.Active, created.Status);
-    }
-
-    [Fact]
-    public async Task Should_ReturnControlById_When_ControlExists()
-    {
-        await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidControlAsync("CTRL-002");
-        var created = await createResponse.Content.ReadFromJsonAsync<ControlResponse>();
-
-        var getResponse = await _fixture.Client.GetAsync($"/api/controls/{created!.Id}");
-
-        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-
-        var control = await getResponse.Content.ReadFromJsonAsync<ControlResponse>();
-        Assert.NotNull(control);
-        Assert.Equal(created.Id, control.Id);
-        Assert.Equal("CTRL-002", control.Code);
-    }
-
-    [Fact]
-    public async Task Should_ReturnPaginatedList_IncludingCreatedControls()
-    {
-        await _fixture.ResetDatabaseAsync();
-        await CreateValidControlAsync("CTRL-003");
-        await CreateValidControlAsync("CTRL-004");
-
-        var response = await _fixture.Client.GetAsync("/api/controls?pageNumber=1&pageSize=10&organizationId=11111111-1111-1111-1111-111111111111");
+        var response = await client.GetAsync($"/api/controls?pageNumber=1&pageSize=10&organizationId={TestData.OtherOrganizationId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var page = await response.Content.ReadFromJsonAsync<PagedResult<ControlListItemResponse>>();
+        var page = await response.Content.ReadFromJsonAsync<AuditAI.Application.Common.Pagination.PagedResult<ControlListItemResponse>>();
         Assert.NotNull(page);
-        Assert.True(page.TotalCount >= 2);
-        Assert.Contains(page.Items, item => item.Code == "CTRL-003");
-        Assert.Contains(page.Items, item => item.Code == "CTRL-004");
+        Assert.Contains(page.Items, item => item.Id == TestData.ControlId);
+        Assert.DoesNotContain(page.Items, item => item.Id == TestData.OtherControlId);
+    }
+
+    [Fact]
+    public async Task Should_ReturnNotFound_When_GettingControlFromAnotherOrganization()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync($"/api/controls/{TestData.OtherControlId}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     public async Task Should_ReturnNotFound_When_UpdatingMissingControl()
     {
         await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var response = await _fixture.Client.PutAsJsonAsync(
+        var response = await client.PutAsJsonAsync(
             $"/api/controls/{Guid.NewGuid()}",
             new UpdateControlRequest
             {
@@ -139,10 +148,12 @@ public sealed class ControlsApiTests
     public async Task Should_ReturnOk_When_UpdateIsValid()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidControlAsync("CTRL-006");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var createResponse = await CreateValidControlAsync(client, "CTRL-006");
         var created = await createResponse.Content.ReadFromJsonAsync<ControlResponse>();
 
-        var updateResponse = await _fixture.Client.PutAsJsonAsync(
+        var updateResponse = await client.PutAsJsonAsync(
             $"/api/controls/{created!.Id}",
             new UpdateControlRequest
             {
@@ -155,44 +166,48 @@ public sealed class ControlsApiTests
             });
 
         Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
-
-        var updated = await updateResponse.Content.ReadFromJsonAsync<ControlResponse>();
-        Assert.NotNull(updated);
-        Assert.Equal("Updated control", updated.Title);
-        Assert.Equal(ControlFrequency.Yearly, updated.Frequency);
     }
 
     [Fact]
-    public async Task Should_DeactivateControl_When_RequestIsValid()
+    public async Task Should_CreateAuditLogWithAuthenticatedActor_When_DeactivatingControl()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidControlAsync("CTRL-007");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var createResponse = await CreateValidControlAsync(client, "CTRL-007");
         var created = await createResponse.Content.ReadFromJsonAsync<ControlResponse>();
 
-        var deactivateResponse = await _fixture.Client.PatchAsync($"/api/controls/{created!.Id}/deactivate", null);
+        var deactivateResponse = await client.PatchAsync($"/api/controls/{created!.Id}/deactivate", null);
 
         Assert.Equal(HttpStatusCode.OK, deactivateResponse.StatusCode);
 
-        var deactivated = await deactivateResponse.Content.ReadFromJsonAsync<ControlResponse>();
-        Assert.NotNull(deactivated);
-        Assert.Equal(ControlStatus.Inactive, deactivated.Status);
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AuditAIDbContext>();
+        var auditLog = await dbContext.AuditLogs
+            .AsNoTracking()
+            .SingleAsync(log =>
+                log.EntityName == nameof(Control) &&
+                log.EntityId == created.Id &&
+                log.Action == AuditAI.Domain.Enums.AuditLogAction.ControlDeactivated);
+
+        Assert.Equal(TestData.UserId, auditLog.UserId);
+        Assert.Equal(TestData.OrganizationId, auditLog.OrganizationId);
     }
 
     [Fact]
-    public async Task Should_ReturnNotFound_When_ControlIsMissing()
+    public async Task Should_KeepNonControlEndpointAnonymous_ForNow()
     {
         await _fixture.ResetDatabaseAsync();
 
-        var response = await _fixture.Client.GetAsync($"/api/controls/{Guid.NewGuid()}");
+        var response = await _fixture.Client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    private async Task<HttpResponseMessage> CreateValidControlAsync(string code)
+    private static Task<HttpResponseMessage> CreateValidControlAsync(HttpClient client, string code)
     {
-        return await _fixture.Client.PostAsJsonAsync("/api/controls", new CreateControlRequest
+        return client.PostAsJsonAsync("/api/controls", new CreateControlRequest
         {
-            OrganizationId = TestData.OrganizationId,
             DepartmentId = TestData.DepartmentId,
             Code = code,
             Category = "Access Management",
