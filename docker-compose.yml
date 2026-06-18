@@ -1,8 +1,6 @@
 # This file is used to specify the Docker Compose configuration for the AuditAI project.
 # It allows you to run the application and its dependencies in a containerized environment.
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
