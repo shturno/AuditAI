@@ -75,6 +75,13 @@ This keeps each vertical slice explicit without introducing a full CQRS/MediatR 
     *   **Logging**: Implementation of logging providers (e.g., Serilog).
 *   **Key Rule**: This is the "dirty" layer where all the implementation details live. It depends on the Application layer to know which interfaces to implement.
 
+Planned auth-related implementations belong here:
+
+* password hashing
+* JWT generation
+* auth-oriented user lookups
+* current-user support consumed from API context
+
 ### `AuditAI.Api`
 
 *   **Purpose**: The entry point for external clients (e.g., a web browser, a mobile app). It handles HTTP-related concerns.

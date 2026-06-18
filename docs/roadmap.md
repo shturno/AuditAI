@@ -39,10 +39,13 @@ This document outlines the planned development phases for the AuditAI project.
 
 *   **Goal**: Secure the API.
 *   **Tasks**:
+    *   [ ] Implement minimal `password_hash` support on users.
     *   [ ] Implement JWT generation and validation.
-    *   [ ] Create `/auth/login` and `/auth/register` endpoints.
+    *   [ ] Create `/auth/login` endpoint.
+    *   [ ] Add `ICurrentUser` support for actor resolution.
+    *   [ ] Replace request-provided actor ids with authenticated actor where appropriate.
     *   [ ] Add `[Authorize]` attributes to protected endpoints.
-    *   [ ] Implement role-based authorization policies.
+    *   [ ] Implement role-based and organization-bound authorization policies.
 
 ## Phase 5: Testing and Quality
 
