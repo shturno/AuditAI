@@ -16,10 +16,7 @@ public sealed class ActionPlan : Entity
         DateTimeOffset createdAt)
         : base(id)
     {
-        if (dueDate < createdAt)
-        {
-            throw new DomainRuleViolationException("Action plan due date cannot be earlier than the creation date.");
-        }
+        EnsureDueDateIsOnOrAfter(createdAt, dueDate);
 
         AuditFindingId = Guard.AgainstEmpty(auditFindingId, nameof(auditFindingId));
         AssignedToUserId = Guard.AgainstEmpty(assignedToUserId, nameof(assignedToUserId));
@@ -66,10 +63,7 @@ public sealed class ActionPlan : Entity
         DateTimeOffset dueDate,
         DateTimeOffset updatedAt)
     {
-        if (dueDate < CreatedAt)
-        {
-            throw new DomainRuleViolationException("Action plan due date cannot be earlier than the creation date.");
-        }
+        EnsureDueDateIsOnOrAfter(CreatedAt, dueDate);
 
         AssignedToUserId = Guard.AgainstEmpty(assignedToUserId, nameof(assignedToUserId));
         Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
@@ -105,5 +99,13 @@ public sealed class ActionPlan : Entity
     public bool IsOpenForResolution()
     {
         return Status is ActionPlanStatus.Open or ActionPlanStatus.InProgress or ActionPlanStatus.Overdue;
+    }
+
+    private static void EnsureDueDateIsOnOrAfter(DateTimeOffset createdAt, DateTimeOffset dueDate)
+    {
+        if (dueDate < createdAt)
+        {
+            throw new DomainRuleViolationException("Action plan due date cannot be earlier than the creation date.");
+        }
     }
 }

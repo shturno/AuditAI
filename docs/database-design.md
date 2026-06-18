@@ -290,7 +290,7 @@ These belong in `AuditAI.Domain` because they are core invariants of the model:
 * Rejecting evidence requires a rejection reason.
 * Evidence can only be reviewed from `Pending`.
 * Action plan due date cannot be earlier than creation date.
-* A critical finding cannot be resolved while it has any open, in-progress, or overdue action plans.
+* A critical finding cannot be resolved while it has any open, in-progress, or overdue action plans, as long as the relevant action plans are loaded as part of the audit finding aggregate.
 * Core descriptive fields such as names, titles, descriptions, codes, and storage references cannot be blank.
 
 ## 13. Rules That Should Be Enforced in Application
@@ -302,6 +302,7 @@ These depend on identity, current time, orchestration, or cross-aggregate checks
 * Only authorized roles may create controls, findings, or action plans.
 * A user and target record must belong to the same organization.
 * Action plan due date should not be in the past relative to the current clock.
+* If resolving a finding requires checking action plans that are not already loaded in the aggregate, the Application layer must load them before calling the Domain method.
 * Reviewer identity must be different from invalid or deleted users.
 * Audit log rows should be generated for all sensitive actions.
 * Any future AI suggestion must remain advisory only and must never directly approve, reject, resolve, or delete audit data.

@@ -1,14 +1,10 @@
 using AuditAI.Domain.Common;
 using AuditAI.Domain.Enums;
-using AuditAI.Domain.Exceptions;
 
 namespace AuditAI.Domain.Entities;
 
 public sealed class Control : Entity
 {
-    private readonly List<Evidence> _evidenceItems = [];
-    private readonly List<AuditFinding> _auditFindings = [];
-
     private Control(
         Guid id,
         Guid organizationId,
@@ -49,10 +45,6 @@ public sealed class Control : Entity
     public DateTimeOffset CreatedAt { get; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
-
-    public IReadOnlyCollection<Evidence> EvidenceItems => _evidenceItems.AsReadOnly();
-
-    public IReadOnlyCollection<AuditFinding> AuditFindings => _auditFindings.AsReadOnly();
 
     public static Control Create(
         Guid id,
@@ -106,31 +98,5 @@ public sealed class Control : Entity
     {
         Status = ControlStatus.Inactive;
         UpdatedAt = updatedAt;
-    }
-
-    public void AddEvidence(Evidence evidence)
-    {
-        ArgumentNullException.ThrowIfNull(evidence);
-
-        if (evidence.ControlId != Id)
-        {
-            throw new DomainRuleViolationException("Evidence must belong to this control.");
-        }
-
-        _evidenceItems.Add(evidence);
-        UpdatedAt = evidence.UpdatedAt;
-    }
-
-    public void AddFinding(AuditFinding auditFinding)
-    {
-        ArgumentNullException.ThrowIfNull(auditFinding);
-
-        if (auditFinding.ControlId != Id)
-        {
-            throw new DomainRuleViolationException("Audit finding must belong to this control.");
-        }
-
-        _auditFindings.Add(auditFinding);
-        UpdatedAt = auditFinding.UpdatedAt;
     }
 }
