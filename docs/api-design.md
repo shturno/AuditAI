@@ -25,6 +25,14 @@ We follow standard RESTful principles for our API design.
 *   **Use kebab-case for paths**: If a resource name has multiple words, separate them with hyphens (though we will try to stick to single-word resources).
 *   **Versioning**: The API version is included in the path: `/api/v1/...`
 
+Current implemented endpoints are intentionally unversioned during the early build-out phase:
+
+*   `POST /api/controls`
+*   `GET /api/controls/{id}`
+*   `GET /api/controls`
+*   `PUT /api/controls/{id}`
+*   `PATCH /api/controls/{id}/deactivate`
+
 ## 3. HTTP Status Code Rules
 
 We use standard HTTP status codes to indicate the outcome of a request.
