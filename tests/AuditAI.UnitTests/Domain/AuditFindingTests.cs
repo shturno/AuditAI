@@ -28,6 +28,7 @@ public sealed class AuditFindingTests
             DateTimeOffset.UtcNow);
 
         finding.AddActionPlan(actionPlan);
+        finding.MarkInProgress(DateTimeOffset.UtcNow);
 
         Assert.Throws<DomainRuleViolationException>(() => finding.Resolve(DateTimeOffset.UtcNow));
     }
@@ -74,10 +75,26 @@ public sealed class AuditFindingTests
 
         actionPlan.Complete(now.AddDays(2));
         finding.AddActionPlan(actionPlan);
+        finding.MarkInProgress(now.AddDays(1));
 
         finding.Resolve(now.AddDays(3));
 
         Assert.Equal(AuditFindingStatus.Resolved, finding.Status);
         Assert.Equal(now.AddDays(3), finding.ResolvedAt);
+    }
+
+    [Fact]
+    public void Should_NotAllowResolve_When_FindingIsNotInProgress()
+    {
+        var finding = AuditFinding.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Missing evidence trail",
+            "The control lacks periodic evidence.",
+            AuditFindingSeverity.Medium,
+            DateTimeOffset.UtcNow);
+
+        Assert.Throws<DomainRuleViolationException>(() => finding.Resolve(DateTimeOffset.UtcNow));
     }
 }

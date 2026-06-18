@@ -74,12 +74,22 @@ public sealed class AuditFinding : Entity
 
     public void MarkInProgress(DateTimeOffset updatedAt)
     {
+        if (Status != AuditFindingStatus.Open)
+        {
+            throw new DomainRuleViolationException("Only open findings can be moved to in progress.");
+        }
+
         Status = AuditFindingStatus.InProgress;
         UpdatedAt = updatedAt;
     }
 
     public void Resolve(DateTimeOffset resolvedAt)
     {
+        if (Status != AuditFindingStatus.InProgress)
+        {
+            throw new DomainRuleViolationException("Only findings in progress can be resolved.");
+        }
+
         if (Severity == AuditFindingSeverity.Critical &&
             _actionPlans.Any(static plan => plan.IsOpenForResolution()))
         {
@@ -94,6 +104,16 @@ public sealed class AuditFinding : Entity
 
     public void Cancel(DateTimeOffset updatedAt)
     {
+        if (Status == AuditFindingStatus.Resolved)
+        {
+            throw new DomainRuleViolationException("Resolved findings cannot be cancelled.");
+        }
+
+        if (Status == AuditFindingStatus.Cancelled)
+        {
+            throw new DomainRuleViolationException("Cancelled findings cannot be cancelled again.");
+        }
+
         Status = AuditFindingStatus.Cancelled;
         UpdatedAt = updatedAt;
     }
