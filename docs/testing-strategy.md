@@ -36,7 +36,9 @@ Our goal is to let tests drive development, especially for business-critical log
 *   **What to Test**:
     *   **API Endpoints**: Test the full flow from an HTTP request to the database and back.
     *   **Database Interactions**: Verify that the EF Core repository implementations work as expected.
-*   **Environment**: Integration tests will run against a real (but temporary or containerized) database to ensure accuracy.
+*   **Environment**: Integration tests run against a real temporary PostgreSQL database started with Testcontainers.
+*   **Flow Coverage**: Integration tests should exercise the full vertical slice: API -> Application -> Infrastructure -> EF Core -> database.
+*   **Isolation Strategy**: The test fixture recreates the database schema with migrations and seeds only the minimum required reference data for each test.
 
 ## 5. Test Naming Convention
 
