@@ -1,3 +1,5 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Controls.Contracts;
@@ -20,6 +22,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new UpdateControlRequestValidator());
 
@@ -53,6 +56,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new CreateControlRequestValidator());
 
@@ -87,6 +91,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new CreateControlRequestValidator());
 
@@ -115,6 +120,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new CreateControlRequestValidator());
 
@@ -147,6 +153,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new CreateControlRequestValidator());
 
@@ -183,6 +190,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new CreateControlRequestValidator());
 
@@ -237,6 +245,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             clock,
             new UpdateControlRequestValidator());
 
@@ -290,6 +299,7 @@ public sealed class ControlServiceTests
             repository,
             lookup,
             lookup,
+            new FakeAuditLogWriter(),
             clock,
             new UpdateControlRequestValidator());
 
@@ -359,6 +369,17 @@ public sealed class ControlServiceTests
     private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakeAuditLogWriter : IAuditLogWriter
+    {
+        public List<AuditLogWriteEntry> Entries { get; } = [];
+
+        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeControlReferenceLookup : IOrganizationLookup, IDepartmentLookup

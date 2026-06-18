@@ -1,3 +1,6 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -14,6 +17,7 @@ public sealed class CreateEvidenceService
     private readonly IEvidenceRepository _evidenceRepository;
     private readonly IControlLookup _controlLookup;
     private readonly IUserLookup _userLookup;
+    private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<CreateEvidenceRequest> _validator;
 
@@ -21,12 +25,14 @@ public sealed class CreateEvidenceService
         IEvidenceRepository evidenceRepository,
         IControlLookup controlLookup,
         IUserLookup userLookup,
+        IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider,
         IValidator<CreateEvidenceRequest> validator)
     {
         _evidenceRepository = evidenceRepository;
         _controlLookup = controlLookup;
         _userLookup = userLookup;
+        _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -62,6 +68,18 @@ public sealed class CreateEvidenceService
             _dateTimeProvider.UtcNow);
 
         await _evidenceRepository.AddAsync(evidence, cancellationToken);
+        var organizationId = await _controlLookup.GetControlOrganizationIdAsync(request.ControlId, cancellationToken);
+        await _auditLogWriter.WriteAsync(
+            new AuditLogWriteEntry(
+                organizationId!.Value,
+                request.SubmittedByUserId,
+                AuditAI.Domain.Enums.AuditLogAction.EvidenceSubmitted,
+                nameof(AuditAI.Domain.Entities.Evidence),
+                evidence.Id,
+                AuditLogMetadata.Build(
+                    ("fileName", evidence.FileName),
+                    ("status", evidence.Status.ToString()))),
+            cancellationToken);
         await _evidenceRepository.SaveChangesAsync(cancellationToken);
 
         return Result<EvidenceResponse>.Success(EvidenceResponseMapper.ToResponse(evidence));

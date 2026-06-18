@@ -1,3 +1,7 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
+using AuditAI.Application.AuditLogs.Validators;
 using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Services;
 using AuditAI.Application.ActionPlans.Validators;
@@ -24,6 +28,9 @@ public static class DependencyInjection
         services.AddScoped<ListControlsService>();
         services.AddScoped<UpdateControlService>();
         services.AddScoped<DeactivateControlService>();
+        services.AddScoped<GetAuditLogByIdService>();
+        services.AddScoped<ListAuditLogsService>();
+        services.AddScoped<IAuditLogWriter, AuditLogWriter>();
         services.AddScoped<CreateActionPlanService>();
         services.AddScoped<GetActionPlanByIdService>();
         services.AddScoped<ListActionPlansService>();
@@ -43,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IValidator<CreateControlRequest>, CreateControlRequestValidator>();
         services.AddScoped<IValidator<UpdateControlRequest>, UpdateControlRequestValidator>();
         services.AddScoped<IValidator<ControlQueryParameters>, ControlQueryParametersValidator>();
+        services.AddScoped<IValidator<AuditLogQueryParameters>, AuditLogQueryParametersValidator>();
         services.AddScoped<IValidator<CreateActionPlanRequest>, CreateActionPlanRequestValidator>();
         services.AddScoped<IValidator<UpdateActionPlanRequest>, UpdateActionPlanRequestValidator>();
         services.AddScoped<IValidator<ChangeActionPlanStatusRequest>, ChangeActionPlanStatusRequestValidator>();

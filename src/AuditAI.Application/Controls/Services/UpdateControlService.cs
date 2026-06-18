@@ -1,3 +1,6 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -13,6 +16,7 @@ public sealed class UpdateControlService
     private readonly IControlRepository _controlRepository;
     private readonly IOrganizationLookup _organizationLookup;
     private readonly IDepartmentLookup _departmentLookup;
+    private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<UpdateControlRequest> _validator;
 
@@ -20,12 +24,14 @@ public sealed class UpdateControlService
         IControlRepository controlRepository,
         IOrganizationLookup organizationLookup,
         IDepartmentLookup departmentLookup,
+        IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider,
         IValidator<UpdateControlRequest> validator)
     {
         _controlRepository = controlRepository;
         _organizationLookup = organizationLookup;
         _departmentLookup = departmentLookup;
+        _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -80,6 +86,18 @@ public sealed class UpdateControlService
 
         control.AssignDepartment(request.DepartmentId, _dateTimeProvider.UtcNow);
 
+        await _auditLogWriter.WriteAsync(
+            new AuditLogWriteEntry(
+                control.OrganizationId,
+                null,
+                AuditAI.Domain.Enums.AuditLogAction.ControlUpdated,
+                nameof(AuditAI.Domain.Entities.Control),
+                control.Id,
+                AuditLogMetadata.Build(
+                    ("code", control.Code),
+                    ("category", control.Category),
+                    ("status", control.Status.ToString()))),
+            cancellationToken);
         await _controlRepository.SaveChangesAsync(cancellationToken);
 
         return Result<ControlResponse>.Success(ControlResponseMapper.ToResponse(control));

@@ -85,6 +85,9 @@ This document outlines the core business rules, entities, and workflows for the 
 *   The creator of an Audit Finding must exist and belong to the same Organization as the target Control.
 *   Audit Findings move through `Open`, `InProgress`, `Resolved`, and `Cancelled` according to domain transition rules.
 *   Action Plans start as `Open` and move through `InProgress`, `Completed`, `Overdue`, and `Cancelled` according to domain transition rules.
+*   Audit Logs are append-only and system-created only after successful business operations.
+*   Audit Logs store organization, optional user, action, entity name, entity id, timestamp, and optional safe metadata.
+*   Audit Logs must not store passwords, tokens, JWTs, connection strings, or similar secrets in metadata.
 
 ### Responsibility Notes
 
@@ -96,6 +99,7 @@ This document outlines the core business rules, entities, and workflows for the 
 *   Audit Finding/User existence checks and organization consistency for Action Plan create/update are Application-layer orchestration rules, not Domain rules.
 *   Authenticated tenant authorization is future work and is not implemented yet.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
+*   Actor resolution for `AuditLog.UserId` is partial before authentication exists: some flows use user ids already present in requests, while other flows currently persist `null`.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.
 
 ## 6. Audit Logging Rules
@@ -103,12 +107,15 @@ This document outlines the core business rules, entities, and workflows for the 
 The following actions must generate an `AuditLog` entry:
 
 *   User login/logout.
-*   Creation, update, or deletion of a Control.
+*   `ControlCreated`, `ControlUpdated`, and `ControlDeactivated`.
 *   Submission of Evidence.
-*   Acceptance or rejection of Evidence.
-*   Creation or resolution of an AuditFinding.
-*   Creation or completion of an ActionPlan.
+*   `EvidenceAccepted` and `EvidenceRejected`.
+*   `AuditFindingCreated`, `AuditFindingUpdated`, and `AuditFindingStatusChanged`.
+*   `ActionPlanCreated`, `ActionPlanUpdated`, and `ActionPlanStatusChanged`.
 *   Changes to user roles or permissions.
+
+Audit logs are not publicly created through API `POST` endpoints.
+Audit logs are not updated or deleted through normal API flows.
 
 ## 7. Dashboard Aggregation Rules
 

@@ -3,6 +3,7 @@ using System;
 using AuditAI.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuditAI.Infrastructure.Migrations
 {
     [DbContext(typeof(AuditAIDbContext))]
-    partial class AuditAIDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618182357_UpdateAuditLogActions")]
+    partial class UpdateAuditLogActions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -57,7 +57,7 @@ internal sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         {
             tableBuilder.HasCheckConstraint(
                 "ck_audit_logs_action",
-                "action IN ('UserLoggedIn', 'UserLoggedOut', 'ControlCreated', 'ControlUpdated', 'ControlDeleted', 'EvidenceSubmitted', 'EvidenceAccepted', 'EvidenceRejected', 'AuditFindingCreated', 'AuditFindingResolved', 'ActionPlanCreated', 'ActionPlanCompleted', 'UserRoleChanged')");
+                "action IN ('UserLoggedIn', 'UserLoggedOut', 'ControlCreated', 'ControlUpdated', 'ControlDeleted', 'EvidenceSubmitted', 'EvidenceAccepted', 'EvidenceRejected', 'AuditFindingCreated', 'AuditFindingResolved', 'ActionPlanCreated', 'ActionPlanCompleted', 'UserRoleChanged', 'ControlDeactivated', 'AuditFindingUpdated', 'AuditFindingStatusChanged', 'ActionPlanUpdated', 'ActionPlanStatusChanged')");
         });
 
         builder.HasOne<Organization>()

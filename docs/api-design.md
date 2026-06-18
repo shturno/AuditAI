@@ -47,6 +47,10 @@ Current implemented endpoints are intentionally unversioned during the early bui
 *   `GET /api/action-plans`
 *   `PUT /api/action-plans/{id}`
 *   `PATCH /api/action-plans/{id}/status`
+*   `GET /api/audit-logs/{id}`
+*   `GET /api/audit-logs`
+
+Audit logs are read-only through the public API. There are no `POST`, `PUT`, `PATCH`, or `DELETE` audit-log endpoints.
 
 ## 3. HTTP Status Code Rules
 

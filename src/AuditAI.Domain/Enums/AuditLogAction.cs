@@ -14,5 +14,10 @@ public enum AuditLogAction
     AuditFindingResolved = 10,
     ActionPlanCreated = 11,
     ActionPlanCompleted = 12,
-    UserRoleChanged = 13
+    UserRoleChanged = 13,
+    ControlDeactivated = 14,
+    AuditFindingUpdated = 15,
+    AuditFindingStatusChanged = 16,
+    ActionPlanUpdated = 17,
+    ActionPlanStatusChanged = 18
 }

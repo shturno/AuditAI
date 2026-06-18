@@ -1,4 +1,6 @@
 using AuditAI.Api.Controllers;
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Controls.Contracts;
@@ -80,11 +82,11 @@ public sealed class ControlsControllerTests
         var lookup = new FakeControlReferenceLookup();
 
         return new ControlsController(
-            new CreateControlService(repository, lookup, lookup, dateTimeProvider, new CreateControlRequestValidator()),
+            new CreateControlService(repository, lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new CreateControlRequestValidator()),
             new GetControlByIdService(repository),
             new ListControlsService(repository, new ControlQueryParametersValidator()),
-            new UpdateControlService(repository, lookup, lookup, dateTimeProvider, new UpdateControlRequestValidator()),
-            new DeactivateControlService(repository, dateTimeProvider));
+            new UpdateControlService(repository, lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new UpdateControlRequestValidator()),
+            new DeactivateControlService(repository, new FakeAuditLogWriter(), dateTimeProvider));
     }
 
     private sealed class FakeControlRepository : IControlRepository
@@ -135,6 +137,14 @@ public sealed class ControlsControllerTests
     private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakeAuditLogWriter : IAuditLogWriter
+    {
+        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeControlReferenceLookup : IOrganizationLookup, IDepartmentLookup

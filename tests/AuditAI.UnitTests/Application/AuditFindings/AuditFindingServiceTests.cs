@@ -1,6 +1,8 @@
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Services;
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.AuditFindings.Validators;
 using AuditAI.Application.Common.Abstractions;
@@ -18,7 +20,7 @@ public sealed class AuditFindingServiceTests
     {
         var repository = new FakeAuditFindingRepository();
         var lookup = new FakeReferenceLookup();
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
+        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateAuditFindingRequest
         {
@@ -43,7 +45,7 @@ public sealed class AuditFindingServiceTests
         {
             ControlOrganizations = { [controlId] = organizationId }
         };
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
+        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateAuditFindingRequest
         {
@@ -69,7 +71,7 @@ public sealed class AuditFindingServiceTests
             ControlOrganizations = { [controlId] = Guid.NewGuid() },
             UserOrganizations = { [creatorId] = Guid.NewGuid() }
         };
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
+        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateAuditFindingRequest
         {
@@ -96,7 +98,7 @@ public sealed class AuditFindingServiceTests
             ControlOrganizations = { [controlId] = organizationId },
             UserOrganizations = { [creatorId] = organizationId }
         };
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
+        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateAuditFindingRequest
         {
@@ -128,7 +130,7 @@ public sealed class AuditFindingServiceTests
     public async Task Should_ReturnNotFound_When_UpdatingMissingFinding()
     {
         var repository = new FakeAuditFindingRepository();
-        var service = new UpdateAuditFindingService(repository, new FakeDateTimeProvider(), new UpdateAuditFindingRequestValidator());
+        var service = new UpdateAuditFindingService(repository, new FakeFindingLookup(), new FakeAuditLogWriter(), new FakeDateTimeProvider(), new UpdateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(Guid.NewGuid(), new UpdateAuditFindingRequest
         {
@@ -156,7 +158,8 @@ public sealed class AuditFindingServiceTests
             clock.UtcNow);
         repository.StoredFindings.Add(finding);
 
-        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), clock, new ChangeAuditFindingStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
+        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -181,7 +184,8 @@ public sealed class AuditFindingServiceTests
             AuditFindingSeverity.High,
             clock.UtcNow);
         repository.StoredFindings.Add(finding);
-        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), clock, new ChangeAuditFindingStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
+        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var inProgressResult = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -206,7 +210,8 @@ public sealed class AuditFindingServiceTests
             AuditFindingSeverity.High,
             clock.UtcNow);
         repository.StoredFindings.Add(finding);
-        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), clock, new ChangeAuditFindingStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
+        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -233,7 +238,8 @@ public sealed class AuditFindingServiceTests
             clock.UtcNow);
         finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
         repository.StoredFindings.Add(finding);
-        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, clock, new ChangeAuditFindingStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
+        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -260,7 +266,8 @@ public sealed class AuditFindingServiceTests
             clock.UtcNow);
         finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
         repository.StoredFindings.Add(finding);
-        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, clock, new ChangeAuditFindingStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
+        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -351,6 +358,24 @@ public sealed class AuditFindingServiceTests
         public Task<Guid?> GetUserOrganizationIdAsync(Guid userId, CancellationToken cancellationToken)
         {
             return Task.FromResult(UserOrganizations.TryGetValue(userId, out var organizationId) ? (Guid?)organizationId : null);
+        }
+    }
+
+    private sealed class FakeFindingLookup : IAuditFindingLookup
+    {
+        public Dictionary<Guid, Guid> FindingOrganizations { get; } = [];
+
+        public Task<Guid?> GetFindingOrganizationIdAsync(Guid auditFindingId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(FindingOrganizations.TryGetValue(auditFindingId, out var organizationId) ? (Guid?)organizationId : null);
+        }
+    }
+
+    private sealed class FakeAuditLogWriter : IAuditLogWriter
+    {
+        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 

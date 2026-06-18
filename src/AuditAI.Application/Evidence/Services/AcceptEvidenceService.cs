@@ -1,3 +1,6 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -14,6 +17,7 @@ public sealed class AcceptEvidenceService
     private readonly IEvidenceRepository _evidenceRepository;
     private readonly IControlLookup _controlLookup;
     private readonly IUserLookup _userLookup;
+    private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<ReviewEvidenceRequest> _validator;
 
@@ -21,12 +25,14 @@ public sealed class AcceptEvidenceService
         IEvidenceRepository evidenceRepository,
         IControlLookup controlLookup,
         IUserLookup userLookup,
+        IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider,
         IValidator<ReviewEvidenceRequest> validator)
     {
         _evidenceRepository = evidenceRepository;
         _controlLookup = controlLookup;
         _userLookup = userLookup;
+        _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -69,6 +75,17 @@ public sealed class AcceptEvidenceService
         }
 
         evidence.Accept(request.ReviewerUserId, _dateTimeProvider.UtcNow);
+        var organizationId = await _controlLookup.GetControlOrganizationIdAsync(evidence.ControlId, cancellationToken);
+        await _auditLogWriter.WriteAsync(
+            new AuditLogWriteEntry(
+                organizationId!.Value,
+                request.ReviewerUserId,
+                AuditAI.Domain.Enums.AuditLogAction.EvidenceAccepted,
+                nameof(AuditAI.Domain.Entities.Evidence),
+                evidence.Id,
+                AuditLogMetadata.Build(
+                    ("status", evidence.Status.ToString()))),
+            cancellationToken);
         await _evidenceRepository.SaveChangesAsync(cancellationToken);
 
         return Result<EvidenceResponse>.Success(EvidenceResponseMapper.ToResponse(evidence));

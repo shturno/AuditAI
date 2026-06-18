@@ -4,12 +4,9 @@ This document provides additional notes on the security posture of the AuditAI p
 
 ## 1. Authentication (JWT)
 
-*   **Mechanism**: We use JSON Web Tokens (JWT) for authenticating users.
-*   **Flow**:
-    1.  A user sends their credentials to an `/auth/login` endpoint.
-    2.  The server validates the credentials and, if successful, returns a signed JWT.
-    3.  The client stores this token and includes it in the `Authorization` header for all subsequent requests to protected endpoints (e.g., `Authorization: Bearer <token>`).
-*   **Key Management**: The JWT signing key is a critical secret. It is managed via `user-secrets` in local development and must be stored securely (e.g., in Azure Key Vault or as an environment variable) in production.
+*   **Current status**: Authentication is not implemented yet in the current codebase.
+*   **Planned direction**: JWT-based authentication is still the intended future approach, but current endpoints run without authenticated actor resolution.
+*   **Audit log implication**: Until authentication exists, some audit log entries store `UserId` from request payloads where available, and other actions store `null` for the actor.
 
 ## 2. Authorization (Role-Based)
 
@@ -50,3 +47,9 @@ This document provides additional notes on the security posture of the AuditAI p
 *   **Prompt Injection**: We will need to be vigilant about sanitizing any user-provided input that is passed to an AI model to prevent prompt injection.
 *   **Data Leakage**: We must ensure that our AI integration does not inadvertently leak sensitive audit data to external providers or in its own logs.
 *   **Model Security**: If we were to host our own models, we would need to secure them against unauthorized access and potential attacks.
+
+## 9. Audit Log Metadata
+
+*   Audit logs are append-only records created by application services after successful business operations.
+*   Audit log metadata must remain simple and must not store passwords, tokens, JWTs, connection strings, secrets, or credentials.
+*   Public API clients cannot create, update, or delete audit logs directly.

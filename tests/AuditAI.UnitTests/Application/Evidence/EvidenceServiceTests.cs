@@ -1,3 +1,5 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Evidence.Contracts;
@@ -16,7 +18,7 @@ public sealed class EvidenceServiceTests
     {
         var repository = new FakeEvidenceRepository();
         var lookup = new FakeEvidenceReferenceLookup();
-        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
+        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateEvidenceRequest
         {
@@ -40,7 +42,7 @@ public sealed class EvidenceServiceTests
         {
             ControlOrganizations = { [controlId] = organizationId }
         };
-        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
+        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateEvidenceRequest
         {
@@ -65,7 +67,7 @@ public sealed class EvidenceServiceTests
             ControlOrganizations = { [controlId] = Guid.NewGuid() },
             UserOrganizations = { [submitterId] = Guid.NewGuid() }
         };
-        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
+        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateEvidenceRequest
         {
@@ -91,7 +93,7 @@ public sealed class EvidenceServiceTests
             ControlOrganizations = { [controlId] = organizationId },
             UserOrganizations = { [submitterId] = organizationId }
         };
-        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
+        var service = new CreateEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateEvidenceRequest
         {
@@ -111,7 +113,7 @@ public sealed class EvidenceServiceTests
     {
         var repository = new FakeEvidenceRepository();
         var lookup = new FakeEvidenceReferenceLookup();
-        var service = new AcceptEvidenceService(repository, lookup, lookup, new FakeDateTimeProvider(), new ReviewEvidenceRequestValidator());
+        var service = new AcceptEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new ReviewEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(Guid.NewGuid(), new ReviewEvidenceRequest
         {
@@ -134,7 +136,7 @@ public sealed class EvidenceServiceTests
         {
             ControlOrganizations = { [controlId] = Guid.NewGuid() }
         };
-        var service = new AcceptEvidenceService(repository, lookup, lookup, new FakeDateTimeProvider(), new ReviewEvidenceRequestValidator());
+        var service = new AcceptEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new ReviewEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(evidence.Id, new ReviewEvidenceRequest
         {
@@ -152,6 +154,7 @@ public sealed class EvidenceServiceTests
             new FakeEvidenceRepository(),
             new FakeEvidenceReferenceLookup(),
             new FakeEvidenceReferenceLookup(),
+            new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
             new ReviewEvidenceRequestValidator());
 
@@ -181,7 +184,7 @@ public sealed class EvidenceServiceTests
             ControlOrganizations = { [controlId] = Guid.NewGuid() },
             UserOrganizations = { [reviewerId] = Guid.NewGuid() }
         };
-        var service = new RejectEvidenceService(repository, lookup, lookup, clock, new ReviewEvidenceRequestValidator());
+        var service = new RejectEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), clock, new ReviewEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(evidence.Id, new ReviewEvidenceRequest
         {
@@ -209,7 +212,7 @@ public sealed class EvidenceServiceTests
             ControlOrganizations = { [controlId] = organizationId },
             UserOrganizations = { [reviewerId] = organizationId }
         };
-        var service = new RejectEvidenceService(repository, lookup, lookup, clock, new ReviewEvidenceRequestValidator());
+        var service = new RejectEvidenceService(repository, lookup, lookup, new FakeAuditLogWriter(), clock, new ReviewEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(evidence.Id, new ReviewEvidenceRequest
         {
@@ -280,5 +283,16 @@ public sealed class EvidenceServiceTests
     private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakeAuditLogWriter : IAuditLogWriter
+    {
+        public List<AuditLogWriteEntry> Entries { get; } = [];
+
+        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
+        }
     }
 }

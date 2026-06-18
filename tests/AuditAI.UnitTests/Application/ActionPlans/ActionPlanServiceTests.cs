@@ -2,6 +2,8 @@ using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.ActionPlans.Services;
 using AuditAI.Application.ActionPlans.Validators;
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Evidence.Interfaces;
@@ -18,7 +20,7 @@ public sealed class ActionPlanServiceTests
         var repository = new FakeActionPlanRepository();
         var findingLookup = new FakeFindingLookup();
         var userLookup = new FakeUserLookup();
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -44,7 +46,7 @@ public sealed class ActionPlanServiceTests
             FindingOrganizations = { [findingId] = organizationId }
         };
         var userLookup = new FakeUserLookup();
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -73,7 +75,7 @@ public sealed class ActionPlanServiceTests
         {
             UserOrganizations = { [assignedUserId] = Guid.NewGuid() }
         };
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -103,7 +105,7 @@ public sealed class ActionPlanServiceTests
         {
             UserOrganizations = { [assignedUserId] = organizationId }
         };
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -135,7 +137,7 @@ public sealed class ActionPlanServiceTests
     public async Task Should_ReturnNotFound_When_UpdatingMissingActionPlan()
     {
         var repository = new FakeActionPlanRepository();
-        var service = new UpdateActionPlanService(repository, new FakeFindingLookup(), new FakeUserLookup(), new FakeDateTimeProvider(), new UpdateActionPlanRequestValidator());
+        var service = new UpdateActionPlanService(repository, new FakeFindingLookup(), new FakeUserLookup(), new FakeAuditLogWriter(), new FakeDateTimeProvider(), new UpdateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(Guid.NewGuid(), new UpdateActionPlanRequest
         {
@@ -164,7 +166,8 @@ public sealed class ActionPlanServiceTests
             clock.UtcNow);
         actionPlan.Complete(clock.UtcNow.AddDays(1));
         repository.StoredActionPlans.Add(actionPlan);
-        var service = new ChangeActionPlanStatusService(repository, clock, new ChangeActionPlanStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
+        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
 
         var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
         {
@@ -189,7 +192,8 @@ public sealed class ActionPlanServiceTests
             clock.UtcNow.AddDays(7),
             clock.UtcNow);
         repository.StoredActionPlans.Add(actionPlan);
-        var service = new ChangeActionPlanStatusService(repository, clock, new ChangeActionPlanStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
+        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
 
         var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
         {
@@ -214,7 +218,8 @@ public sealed class ActionPlanServiceTests
             clock.UtcNow.AddDays(7),
             clock.UtcNow);
         repository.StoredActionPlans.Add(actionPlan);
-        var service = new ChangeActionPlanStatusService(repository, clock, new ChangeActionPlanStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
+        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
 
         var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
         {
@@ -239,7 +244,8 @@ public sealed class ActionPlanServiceTests
             clock.UtcNow.AddDays(7),
             clock.UtcNow);
         repository.StoredActionPlans.Add(actionPlan);
-        var service = new ChangeActionPlanStatusService(repository, clock, new ChangeActionPlanStatusRequestValidator());
+        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
+        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
 
         var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
         {
@@ -309,5 +315,13 @@ public sealed class ActionPlanServiceTests
     private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakeAuditLogWriter : IAuditLogWriter
+    {
+        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

@@ -1,0 +1,12 @@
+using AuditAI.Domain.Enums;
+
+namespace AuditAI.Application.AuditLogs.Contracts;
+
+public sealed record AuditLogListItemResponse(
+    Guid Id,
+    Guid OrganizationId,
+    Guid? UserId,
+    AuditLogAction Action,
+    string EntityName,
+    Guid EntityId,
+    DateTimeOffset Timestamp);

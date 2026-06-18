@@ -1,3 +1,6 @@
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Mappers;
@@ -15,6 +18,7 @@ public sealed class CreateAuditFindingService
     private readonly IAuditFindingRepository _auditFindingRepository;
     private readonly IControlLookup _controlLookup;
     private readonly IUserLookup _userLookup;
+    private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<CreateAuditFindingRequest> _validator;
 
@@ -22,12 +26,14 @@ public sealed class CreateAuditFindingService
         IAuditFindingRepository auditFindingRepository,
         IControlLookup controlLookup,
         IUserLookup userLookup,
+        IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider,
         IValidator<CreateAuditFindingRequest> validator)
     {
         _auditFindingRepository = auditFindingRepository;
         _controlLookup = controlLookup;
         _userLookup = userLookup;
+        _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -64,6 +70,18 @@ public sealed class CreateAuditFindingService
             _dateTimeProvider.UtcNow);
 
         await _auditFindingRepository.AddAsync(auditFinding, cancellationToken);
+        var organizationId = await _controlLookup.GetControlOrganizationIdAsync(request.ControlId, cancellationToken);
+        await _auditLogWriter.WriteAsync(
+            new AuditLogWriteEntry(
+                organizationId!.Value,
+                request.CreatedByUserId,
+                AuditAI.Domain.Enums.AuditLogAction.AuditFindingCreated,
+                nameof(AuditAI.Domain.Entities.AuditFinding),
+                auditFinding.Id,
+                AuditLogMetadata.Build(
+                    ("severity", auditFinding.Severity.ToString()),
+                    ("status", auditFinding.Status.ToString()))),
+            cancellationToken);
         await _auditFindingRepository.SaveChangesAsync(cancellationToken);
 
         return Result<AuditFindingResponse>.Success(AuditFindingResponseMapper.ToResponse(auditFinding));
