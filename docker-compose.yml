@@ -1,0 +1,41 @@
+# This file is used to specify the Docker Compose configuration for the AuditAI project.
+# It allows you to run the application and its dependencies in a containerized environment.
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16
+    container_name: auditai-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-auditai_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # AuditAI API
+  api:
+    container_name: auditai-api
+    build:
+      context: .
+      dockerfile: src/AuditAI.Api/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=${DB_NAME:-auditai_dev};Username=${DB_USER:-postgres};Password=${DB_PASSWORD:-changeme}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+    depends_on:
+      - postgres
+    restart: on-failure
+
+volumes:
+  postgres_data:
+    driver: local
