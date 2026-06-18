@@ -11,15 +11,21 @@ namespace AuditAI.Application.Controls.Services;
 public sealed class UpdateControlService
 {
     private readonly IControlRepository _controlRepository;
+    private readonly IOrganizationLookup _organizationLookup;
+    private readonly IDepartmentLookup _departmentLookup;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<UpdateControlRequest> _validator;
 
     public UpdateControlService(
         IControlRepository controlRepository,
+        IOrganizationLookup organizationLookup,
+        IDepartmentLookup departmentLookup,
         IDateTimeProvider dateTimeProvider,
         IValidator<UpdateControlRequest> validator)
     {
         _controlRepository = controlRepository;
+        _organizationLookup = organizationLookup;
+        _departmentLookup = departmentLookup;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -39,6 +45,18 @@ public sealed class UpdateControlService
         if (control is null)
         {
             return Result<ControlResponse>.NotFound("Control was not found.");
+        }
+
+        var referenceErrors = await ControlOrganizationValidation.ValidateAsync(
+            control.OrganizationId,
+            request.DepartmentId,
+            _organizationLookup,
+            _departmentLookup,
+            cancellationToken);
+
+        if (referenceErrors.Count > 0)
+        {
+            return Result<ControlResponse>.ValidationFailure(referenceErrors);
         }
 
         if (await _controlRepository.ExistsWithCodeAsync(

@@ -12,15 +12,21 @@ namespace AuditAI.Application.Controls.Services;
 public sealed class CreateControlService
 {
     private readonly IControlRepository _controlRepository;
+    private readonly IOrganizationLookup _organizationLookup;
+    private readonly IDepartmentLookup _departmentLookup;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<CreateControlRequest> _validator;
 
     public CreateControlService(
         IControlRepository controlRepository,
+        IOrganizationLookup organizationLookup,
+        IDepartmentLookup departmentLookup,
         IDateTimeProvider dateTimeProvider,
         IValidator<CreateControlRequest> validator)
     {
         _controlRepository = controlRepository;
+        _organizationLookup = organizationLookup;
+        _departmentLookup = departmentLookup;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -33,6 +39,18 @@ public sealed class CreateControlService
         if (!validationResult.IsValid)
         {
             return Result<ControlResponse>.ValidationFailure(validationResult.ToValidationErrors());
+        }
+
+        var referenceErrors = await ControlOrganizationValidation.ValidateAsync(
+            request.OrganizationId,
+            request.DepartmentId,
+            _organizationLookup,
+            _departmentLookup,
+            cancellationToken);
+
+        if (referenceErrors.Count > 0)
+        {
+            return Result<ControlResponse>.ValidationFailure(referenceErrors);
         }
 
         if (await _controlRepository.ExistsWithCodeAsync(

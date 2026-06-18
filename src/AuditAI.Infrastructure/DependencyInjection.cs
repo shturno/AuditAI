@@ -1,5 +1,6 @@
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Controls.Interfaces;
+using AuditAI.Infrastructure.Persistence.Lookups;
 using AuditAI.Infrastructure.Persistence;
 using AuditAI.Infrastructure.Persistence.Repositories;
 using AuditAI.Infrastructure.Time;
@@ -22,6 +23,8 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<IControlRepository, ControlRepository>();
+        services.AddScoped<IOrganizationLookup, ControlReferenceLookup>();
+        services.AddScoped<IDepartmentLookup, ControlReferenceLookup>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
         return services;

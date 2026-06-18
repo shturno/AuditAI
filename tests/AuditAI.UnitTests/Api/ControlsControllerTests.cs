@@ -50,12 +50,14 @@ public sealed class ControlsControllerTests
     public async Task Should_ReturnCreated_When_CreateRequestIsValid()
     {
         var controller = CreateController();
+        var organizationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var departmentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
         var result = await controller.Create(
             new CreateControlRequest
             {
-                OrganizationId = Guid.NewGuid(),
-                DepartmentId = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                DepartmentId = departmentId,
                 Code = "CTRL-001",
                 Category = "Access Management",
                 Title = "Quarterly access review",
@@ -75,12 +77,13 @@ public sealed class ControlsControllerTests
     {
         var repository = new FakeControlRepository();
         var dateTimeProvider = new FakeDateTimeProvider();
+        var lookup = new FakeControlReferenceLookup();
 
         return new ControlsController(
-            new CreateControlService(repository, dateTimeProvider, new CreateControlRequestValidator()),
+            new CreateControlService(repository, lookup, lookup, dateTimeProvider, new CreateControlRequestValidator()),
             new GetControlByIdService(repository),
             new ListControlsService(repository, new ControlQueryParametersValidator()),
-            new UpdateControlService(repository, dateTimeProvider, new UpdateControlRequestValidator()),
+            new UpdateControlService(repository, lookup, lookup, dateTimeProvider, new UpdateControlRequestValidator()),
             new DeactivateControlService(repository, dateTimeProvider));
     }
 
@@ -132,5 +135,41 @@ public sealed class ControlsControllerTests
     private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
+    }
+
+    private sealed class FakeControlReferenceLookup : IOrganizationLookup, IDepartmentLookup
+    {
+        public FakeControlReferenceLookup()
+        {
+            var organizationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+            var departmentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+            ExistingOrganizationIds.Add(organizationId);
+            DepartmentsByOrganization[departmentId] = organizationId;
+        }
+
+        public HashSet<Guid> ExistingOrganizationIds { get; } = [];
+
+        public Dictionary<Guid, Guid> DepartmentsByOrganization { get; } = [];
+
+        public Task<bool> OrganizationExistsAsync(Guid organizationId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(ExistingOrganizationIds.Contains(organizationId));
+        }
+
+        public Task<bool> DepartmentExistsAsync(Guid departmentId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(DepartmentsByOrganization.ContainsKey(departmentId));
+        }
+
+        public Task<bool> DepartmentBelongsToOrganizationAsync(
+            Guid departmentId,
+            Guid organizationId,
+            CancellationToken cancellationToken)
+        {
+            var belongs = DepartmentsByOrganization.TryGetValue(departmentId, out var departmentOrganizationId) &&
+                          departmentOrganizationId == organizationId;
+
+            return Task.FromResult(belongs);
+        }
     }
 }

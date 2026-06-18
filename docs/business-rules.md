@@ -73,11 +73,15 @@ This document outlines the core business rules, entities, and workflows for the 
 *   An ActionPlan's due date cannot be earlier than its creation date.
 *   When a Reviewer rejects evidence, a rejection reason is mandatory.
 *   A `Critical` finding cannot be marked as `Resolved` if it has any `Open` or `InProgress` action plans.
+*   A Control must belong to an existing Organization.
+*   If a Control references a Department, that Department must exist and belong to the same Organization as the Control.
 
 ### Responsibility Notes
 
 *   The Domain layer enforces entity-level invariants and status transition rules.
 *   The Application layer is responsible for authentication, authorization, loading related entities, and validating that related records belong to the same organization when that requires persistence lookups.
+*   Organization and Department existence checks for Control create/update are Application-layer orchestration rules, not Domain rules.
+*   Authenticated tenant authorization is future work and is not implemented yet.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.
 
