@@ -1,5 +1,6 @@
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Controls.Interfaces;
+using AuditAI.Application.Evidence.Interfaces;
 using AuditAI.Infrastructure.Persistence.Lookups;
 using AuditAI.Infrastructure.Persistence;
 using AuditAI.Infrastructure.Persistence.Repositories;
@@ -25,6 +26,9 @@ public static class DependencyInjection
         services.AddScoped<IControlRepository, ControlRepository>();
         services.AddScoped<IOrganizationLookup, ControlReferenceLookup>();
         services.AddScoped<IDepartmentLookup, ControlReferenceLookup>();
+        services.AddScoped<IEvidenceRepository, EvidenceRepository>();
+        services.AddScoped<IControlLookup, EvidenceReferenceLookup>();
+        services.AddScoped<IUserLookup, EvidenceReferenceLookup>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
         return services;

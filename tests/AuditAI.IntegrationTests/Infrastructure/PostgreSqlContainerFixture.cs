@@ -1,4 +1,5 @@
 using AuditAI.Domain.Entities;
+using AuditAI.Domain.Enums;
 using AuditAI.Infrastructure.Persistence;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -50,9 +51,47 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
         var otherOrganization = Organization.Create(TestData.OtherOrganizationId, "Other Org", TestData.SeedTimestamp);
         var department = Department.Create(TestData.DepartmentId, TestData.OrganizationId, "Finance", TestData.SeedTimestamp);
         var otherDepartment = Department.Create(TestData.OtherDepartmentId, TestData.OtherOrganizationId, "HR", TestData.SeedTimestamp);
+        var user = User.Create(
+            TestData.UserId,
+            TestData.OrganizationId,
+            TestData.DepartmentId,
+            "Evidence Submitter",
+            "submitter@auditai.test",
+            UserRole.Auditor,
+            TestData.SeedTimestamp);
+        var otherUser = User.Create(
+            TestData.OtherUserId,
+            TestData.OtherOrganizationId,
+            TestData.OtherDepartmentId,
+            "Other User",
+            "other@auditai.test",
+            UserRole.Auditor,
+            TestData.SeedTimestamp);
+        var control = Control.Create(
+            TestData.ControlId,
+            TestData.OrganizationId,
+            TestData.DepartmentId,
+            "CTRL-A",
+            "Access Management",
+            "Quarterly access review",
+            "Seeded control for evidence tests.",
+            ControlFrequency.Quarterly,
+            TestData.SeedTimestamp);
+        var otherControl = Control.Create(
+            TestData.OtherControlId,
+            TestData.OtherOrganizationId,
+            TestData.OtherDepartmentId,
+            "CTRL-B",
+            "Vendor Management",
+            "Vendor control",
+            "Seeded control for mismatch tests.",
+            ControlFrequency.Yearly,
+            TestData.SeedTimestamp);
 
         dbContext.Organizations.AddRange(organization, otherOrganization);
         dbContext.Departments.AddRange(department, otherDepartment);
+        dbContext.Users.AddRange(user, otherUser);
+        dbContext.Controls.AddRange(control, otherControl);
 
         await dbContext.SaveChangesAsync();
     }

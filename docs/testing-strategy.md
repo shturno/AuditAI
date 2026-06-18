@@ -39,6 +39,7 @@ Our goal is to let tests drive development, especially for business-critical log
 *   **Environment**: Integration tests run against a real temporary PostgreSQL database started with Testcontainers.
 *   **Flow Coverage**: Integration tests should exercise the full vertical slice: API -> Application -> Infrastructure -> EF Core -> database.
 *   **Isolation Strategy**: The test fixture recreates the database schema with migrations and seeds only the minimum required reference data for each test.
+*   **Current Database Strategy**: Controls and Evidence API integration tests use PostgreSQL Testcontainers rather than SQLite, so enum, FK, and relational behavior stay aligned with production intent.
 
 ## 5. Test Naming Convention
 

@@ -75,12 +75,16 @@ This document outlines the core business rules, entities, and workflows for the 
 *   A `Critical` finding cannot be marked as `Resolved` if it has any `Open` or `InProgress` action plans.
 *   A Control must belong to an existing Organization.
 *   If a Control references a Department, that Department must exist and belong to the same Organization as the Control.
+*   Evidence must be submitted by an existing User.
+*   The submitter must belong to the same Organization as the target Control.
+*   Evidence review must validate that the reviewer exists and belongs to the same Organization as the target Control.
 
 ### Responsibility Notes
 
 *   The Domain layer enforces entity-level invariants and status transition rules.
 *   The Application layer is responsible for authentication, authorization, loading related entities, and validating that related records belong to the same organization when that requires persistence lookups.
 *   Organization and Department existence checks for Control create/update are Application-layer orchestration rules, not Domain rules.
+*   Control/User existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
 *   Authenticated tenant authorization is future work and is not implemented yet.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.
@@ -115,6 +119,7 @@ The future integration of AI will follow these core principles:
 *   **Human-in-the-Loop**: A human user (e.g., an Auditor or Reviewer) must always be the one to approve, reject, resolve, or delete any audit data.
 *   **Traceability**: When an AI-assisted action is taken (e.g., accepting an AI's suggested risk severity), the system will log that the action was based on an AI suggestion.
 *   **No Automatic State Changes**: AI modules will not be allowed to automatically change the status of critical entities like `AuditFinding` or `ActionPlan`.
+*   **No Automatic Evidence Review**: AI modules will not automatically accept or reject evidence.
 
 ## 9. Out-of-Scope Features (for now)
 
