@@ -27,9 +27,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=${DB_NAME:-auditai_dev};Username=${DB_USER:-postgres};Password=${DB_PASSWORD:-changeme}
-      - Jwt__Key=${JWT_KEY}
-      - Jwt__Issuer=${JWT_ISSUER}
-      - Jwt__Audience=${JWT_AUDIENCE}
+      - Jwt__Secret=${JWT__SECRET}
+      - Jwt__Issuer=${JWT__ISSUER}
+      - Jwt__Audience=${JWT__AUDIENCE}
+      - Jwt__ExpirationMinutes=${JWT__EXPIRATION_MINUTES:-60}
     depends_on:
       - postgres
     restart: on-failure

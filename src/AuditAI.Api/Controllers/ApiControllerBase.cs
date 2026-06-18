@@ -29,6 +29,16 @@ public abstract class ApiControllerBase : ControllerBase
             });
         }
 
+        if (result.IsUnauthorized)
+        {
+            return Unauthorized(new ProblemDetails
+            {
+                Title = "Unauthorized.",
+                Detail = result.Error?.Message,
+                Status = StatusCodes.Status401Unauthorized
+            });
+        }
+
         return BadRequest(new ProblemDetails
         {
             Title = "Request could not be processed.",

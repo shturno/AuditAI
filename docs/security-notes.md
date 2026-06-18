@@ -4,9 +4,9 @@ This document provides additional notes on the security posture of the AuditAI p
 
 ## 1. Authentication (JWT)
 
-*   **Current status**: Authentication is not implemented yet in the current codebase.
-*   **Planned direction**: JWT-based authentication is still the intended future approach, but current endpoints run without authenticated actor resolution.
-*   **Audit log implication**: Until authentication exists, some audit log entries store `UserId` from request payloads where available, and other actions store `null` for the actor.
+*   **Current status**: Minimal JWT login is implemented through `POST /api/auth/login`.
+*   **Current limitation**: Existing business endpoints are still anonymous for now because endpoint protection is a separate next step.
+*   **Audit log implication**: Audit logs still do not resolve the actor from the authenticated user yet. Some entries still use request payload user ids where available, and other actions store `null` for the actor.
 *   **Design reference**: See [docs/auth-design.md](/home/kai/projects/auditai/docs/auth-design.md) for the recommended implementation plan.
 
 ## 2. Authorization (Role-Based)

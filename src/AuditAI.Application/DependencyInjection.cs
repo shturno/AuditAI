@@ -5,6 +5,9 @@ using AuditAI.Application.AuditLogs.Validators;
 using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Services;
 using AuditAI.Application.ActionPlans.Validators;
+using AuditAI.Application.Auth.Contracts;
+using AuditAI.Application.Auth.Services;
+using AuditAI.Application.Auth.Validators;
 using AuditAI.Application.Controls.Contracts;
 using AuditAI.Application.Controls.Services;
 using AuditAI.Application.Controls.Validators;
@@ -23,6 +26,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        services.AddScoped<LoginService>();
         services.AddScoped<CreateControlService>();
         services.AddScoped<GetControlByIdService>();
         services.AddScoped<ListControlsService>();
@@ -62,6 +66,7 @@ public static class DependencyInjection
         services.AddScoped<IValidator<CreateEvidenceRequest>, CreateEvidenceRequestValidator>();
         services.AddScoped<IValidator<ReviewEvidenceRequest>, ReviewEvidenceRequestValidator>();
         services.AddScoped<IValidator<EvidenceQueryParameters>, EvidenceQueryParametersValidator>();
+        services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
 
         return services;
     }

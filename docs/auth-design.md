@@ -1,8 +1,27 @@
 # Authentication And Authorization Design
 
-This document defines the recommended authentication, authorization, and actor-resolution plan for AuditAI before implementation.
+This document defines the recommended authentication, authorization, and actor-resolution plan for AuditAI.
 
 The goal is to add security in a way that fits the current Clean Architecture, keeps the code understandable, and avoids introducing a large identity system too early.
+
+## Current Status
+
+Implemented now:
+
+* custom JWT login using the existing `User` entity
+* `password_hash` persisted on `users`
+* `POST /api/auth/login`
+
+Not implemented yet:
+
+* public registration
+* user management endpoints
+* refresh tokens
+* password reset
+* MFA
+* external providers
+* protection of existing business endpoints
+* authenticated actor resolution for `AuditLog`
 
 ## 1. Recommendation
 
@@ -35,16 +54,15 @@ Current `User` entity already has:
 * `OrganizationId`
 * `DepartmentId`
 
-Current `User` entity does not have:
+Current `User` entity now also has:
 
 * `PasswordHash`
+
+Still not present:
+
 * `IsActive`
 * `LastLoginAt`
 * security stamp or token version
-
-Minimum schema change needed later:
-
-* add `password_hash` text/varchar not null
 
 Recommended near-future but still minimal optional fields:
 
@@ -52,12 +70,13 @@ Recommended near-future but still minimal optional fields:
 
 `is_active` is not strictly required for the first auth step, but it is a useful minimal control for disabling access without deleting users.
 
-Expected migration later:
+Implemented migration:
 
-* add `password_hash`
+* `AddUserPasswordHash`
+
+Possible later migration:
+
 * optionally add `is_active`
-
-No auth schema change is needed now because this document is design-only.
 
 ## 3. Clean Architecture Placement
 
@@ -75,7 +94,7 @@ Domain should only keep:
 
 ### Application
 
-Application should define small interfaces:
+Application defines or should define small interfaces:
 
 * `IUserAuthRepository`
 * `IPasswordHasher`
@@ -98,7 +117,7 @@ Recommended responsibilities:
 
 ### Infrastructure
 
-Infrastructure should implement:
+Infrastructure implements:
 
 * EF Core repository for auth user lookup
 * password hashing implementation
@@ -106,17 +125,24 @@ Infrastructure should implement:
 
 ### API
 
-API should provide:
+API now provides:
 
-* JWT bearer setup later
+* JWT bearer setup
+* `/api/auth/login`
+
+API later should provide:
+
 * HTTP-based `ICurrentUser` implementation reading claims from `HttpContext.User`
 
 ## 4. Planned Use Cases
 
-Recommended minimal auth use cases:
+Current minimal auth use cases:
 
 * `LoginService`
-* `GetCurrentUserService` optional, only if the frontend needs a `/me` style endpoint later
+
+Possible next use cases:
+
+* `GetCurrentUserService` if the frontend needs a `/me` style endpoint later
 
 Do not add public self-registration now.
 
@@ -151,10 +177,10 @@ Rules:
 * do not include permission lists yet
 * do not include mutable profile data beyond what is useful for authorization and request context
 
-Recommended token behavior later:
+Current token behavior:
 
 * short-lived access token
-* no refresh tokens yet
+* no refresh tokens
 
 ## 6. Authorization Plan
 
@@ -248,23 +274,23 @@ Likely unchanged:
 
 ## 9. Security Plan
 
-When implementation starts later, follow these rules:
+Current implementation and future work should follow these rules:
 
 * hash passwords with a strong adaptive hasher
 * never store plaintext passwords
 * keep JWT secret in environment or secret store only
-* do not commit secrets to `appsettings`
+* do not commit real secrets to `appsettings`
 * set token expiration
 * do not log tokens
 * do not include secrets in claims
 * serve authenticated APIs over HTTPS in real deployment
 * do not fake current-user resolution in production code
 
-Recommended hashing implementation later:
+Implemented hashing approach:
 
 * use a standard .NET password hashing approach with a dedicated abstraction
 
-Recommended token behavior later:
+Implemented token behavior:
 
 * one access token
 * no refresh token flow yet
@@ -293,15 +319,12 @@ Recommended test layering:
 
 ## 11. Suggested Implementation Sequence
 
-Recommended order for the later implementation work:
+Recommended next implementation order:
 
-1. Add `password_hash` to user model and database.
-2. Add `IUserAuthRepository`, `IPasswordHasher`, `IJwtTokenGenerator`, and `ICurrentUser`.
-3. Implement `LoginService`.
-4. Add JWT setup in API and Infrastructure.
-5. Add a minimal `/auth/login` endpoint.
-6. Introduce `ICurrentUser` in business services and stop trusting actor ids from request contracts.
-7. Protect selected endpoints.
-8. Add role and organization enforcement incrementally.
+1. Introduce `ICurrentUser` in business services.
+2. Stop trusting actor ids from request contracts where actor should be the authenticated user.
+3. Protect selected endpoints.
+4. Add role and organization enforcement incrementally.
+5. Consider `is_active` if user deactivation becomes necessary.
 
 This order minimizes disruption and lets the team validate the auth foundation before RBAC and tenant authorization spread across all slices.

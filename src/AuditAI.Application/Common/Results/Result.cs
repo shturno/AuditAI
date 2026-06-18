@@ -15,6 +15,8 @@ public class Result
 
     public bool IsNotFound => Error?.Code == "not_found";
 
+    public bool IsUnauthorized => Error?.Code == "unauthorized";
+
     public Error? Error { get; }
 
     public IReadOnlyList<ValidationError> ValidationErrors { get; }
@@ -32,6 +34,11 @@ public class Result
     public static Result NotFound(string message)
     {
         return Failure("not_found", message);
+    }
+
+    public static Result Unauthorized(string message)
+    {
+        return Failure("unauthorized", message);
     }
 
     public static Result ValidationFailure(IReadOnlyList<ValidationError> validationErrors)

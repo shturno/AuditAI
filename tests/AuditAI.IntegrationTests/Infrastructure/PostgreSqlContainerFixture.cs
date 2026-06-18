@@ -1,5 +1,6 @@
 using AuditAI.Domain.Entities;
 using AuditAI.Domain.Enums;
+using AuditAI.Infrastructure.Auth.PasswordHashing;
 using AuditAI.Infrastructure.Persistence;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -43,6 +44,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
     {
         using var scope = Factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AuditAIDbContext>();
+        var passwordHasher = new AspNetPasswordHasher();
 
         await dbContext.Database.EnsureDeletedAsync();
         await dbContext.Database.MigrateAsync();
@@ -56,7 +58,8 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
             TestData.OrganizationId,
             TestData.DepartmentId,
             "Evidence Submitter",
-            "submitter@auditai.test",
+            TestData.UserEmail,
+            passwordHasher.HashPassword(TestData.UserPassword),
             UserRole.Auditor,
             TestData.SeedTimestamp);
         var otherUser = User.Create(
@@ -65,6 +68,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
             TestData.OtherDepartmentId,
             "Other User",
             "other@auditai.test",
+            passwordHasher.HashPassword("OtherPassword123!"),
             UserRole.Auditor,
             TestData.SeedTimestamp);
         var control = Control.Create(

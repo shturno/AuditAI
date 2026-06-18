@@ -24,6 +24,11 @@ public sealed class Result<T> : Result
         return new Result<T>(false, default, new Error("not_found", message), null);
     }
 
+    public static new Result<T> Unauthorized(string message)
+    {
+        return new Result<T>(false, default, new Error("unauthorized", message), null);
+    }
+
     public static new Result<T> Failure(string code, string message)
     {
         return new Result<T>(false, default, new Error(code, message), null);

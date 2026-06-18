@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\AuditAI.Application\AuditAI.Application.csproj" />
     <ProjectReference Include="..\..\src\AuditAI.Api\AuditAI.Api.csproj" />
     <ProjectReference Include="..\..\src\AuditAI.Domain\AuditAI.Domain.csproj" />
+    <ProjectReference Include="..\..\src\AuditAI.Infrastructure\AuditAI.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

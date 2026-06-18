@@ -27,6 +27,7 @@ We follow standard RESTful principles for our API design.
 
 Current implemented endpoints are intentionally unversioned during the early build-out phase:
 
+*   `POST /api/auth/login`
 *   `POST /api/controls`
 *   `GET /api/controls/{id}`
 *   `GET /api/controls`
@@ -120,7 +121,17 @@ When an error occurs, the API will return a consistent error response based on t
 *   Documentation should include a summary, description, and clear information about parameters and responses.
 *   DTO properties should have example values to make the API easier to understand.
 
-## 8. API Behavior for Future AI Endpoints
+## 8. Authentication Notes
+
+Current authentication behavior:
+
+*   `POST /api/auth/login` returns an access token and token expiration on valid credentials.
+*   Invalid login credentials return `401 Unauthorized`.
+*   Malformed login requests still return `400 Bad Request`.
+*   Existing business endpoints are not protected yet in the current slice.
+*   No refresh token, cookie auth, public registration, or password reset flow exists yet.
+
+## 9. API Behavior for Future AI Endpoints
 
 When AI-related endpoints are added, they will follow specific conventions:
 

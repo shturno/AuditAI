@@ -25,7 +25,11 @@ internal sealed class CustomWebApplicationFactory : WebApplicationFactory<Progra
         {
             configurationBuilder.AddInMemoryCollection(
             [
-                new KeyValuePair<string, string?>("ConnectionStrings:DefaultConnection", _connectionString)
+                new KeyValuePair<string, string?>("ConnectionStrings:DefaultConnection", _connectionString),
+                new KeyValuePair<string, string?>("Jwt:Issuer", "AuditAI.Tests"),
+                new KeyValuePair<string, string?>("Jwt:Audience", "AuditAI.Tests.Users"),
+                new KeyValuePair<string, string?>("Jwt:Secret", "integration-tests-secret-key-with-32chars"),
+                new KeyValuePair<string, string?>("Jwt:ExpirationMinutes", "60")
             ]);
         });
 
