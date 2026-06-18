@@ -55,6 +55,7 @@ Roadmap-only future AI tables:
 * `organization_id` UUID
 * `department_id` UUID nullable
 * `code` text
+* `category` text
 * `title` text
 * `description` text nullable
 * `status` text
@@ -146,7 +147,7 @@ Required non-null fields by table:
 * `organizations`: `id`, `name`, `created_at`, `updated_at`
 * `departments`: `id`, `organization_id`, `name`, `created_at`, `updated_at`
 * `users`: `id`, `organization_id`, `full_name`, `email`, `role`, `created_at`, `updated_at`
-* `controls`: `id`, `organization_id`, `code`, `title`, `status`, `frequency`, `created_at`, `updated_at`
+* `controls`: `id`, `organization_id`, `code`, `category`, `title`, `status`, `frequency`, `created_at`, `updated_at`
 * `evidence`: `id`, `control_id`, `submitted_by_user_id`, `file_name`, `storage_reference`, `status`, `created_at`, `updated_at`
 * `audit_findings`: `id`, `control_id`, `created_by_user_id`, `title`, `description`, `severity`, `status`, `created_at`, `updated_at`
 * `action_plans`: `id`, `audit_finding_id`, `assigned_to_user_id`, `title`, `description`, `due_date`, `status`, `created_at`, `updated_at`

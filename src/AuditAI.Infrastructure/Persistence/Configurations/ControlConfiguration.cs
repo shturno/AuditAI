@@ -28,6 +28,11 @@ internal sealed class ControlConfiguration : IEntityTypeConfiguration<Control>
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(x => x.Category)
+            .HasColumnName("category")
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(x => x.Title)
             .HasColumnName("title")
             .HasMaxLength(200)

@@ -1,4 +1,8 @@
+using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Controls.Interfaces;
 using AuditAI.Infrastructure.Persistence;
+using AuditAI.Infrastructure.Persistence.Repositories;
+using AuditAI.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +20,9 @@ public static class DependencyInjection
 
         services.AddDbContext<AuditAIDbContext>(options =>
             options.UseNpgsql(connectionString));
+
+        services.AddScoped<IControlRepository, ControlRepository>();
+        services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
         return services;
     }

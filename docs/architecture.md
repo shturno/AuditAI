@@ -52,6 +52,19 @@ This ensures that the core business logic (Domain) is completely independent of 
     *   **Interfaces**: Abstractions for infrastructure concerns (e.g., `IUserRepository`, `IEmailService`, `IAiAnalysisService`). These interfaces are implemented by the Infrastructure layer.
 *   **Key Rule**: This layer defines *what* the application needs from the outside world (via interfaces) but not *how* it's implemented.
 
+#### Application Feature Structure
+
+We prefer a feature-oriented structure inside `AuditAI.Application` when a slice has enough behavior to justify it.
+
+Example:
+
+*   `Controls/Contracts`
+*   `Controls/Validators`
+*   `Controls/Interfaces`
+*   `Controls/Services`
+
+This keeps each vertical slice explicit without introducing a full CQRS/MediatR stack too early.
+
 ### `AuditAI.Infrastructure`
 
 *   **Purpose**: Provides the technical implementation for the interfaces defined in the Application layer.

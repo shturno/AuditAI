@@ -54,6 +54,7 @@ namespace AuditAI.Infrastructure.Migrations
                     organization_id = table.Column<Guid>(type: "uuid", nullable: false),
                     department_id = table.Column<Guid>(type: "uuid", nullable: true),
                     code = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    category = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
                     status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),

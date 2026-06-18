@@ -27,6 +27,7 @@ Our goal is to let tests drive development, especially for business-critical log
     *   Domain entity behavior.
     *   Application service logic.
     *   Validators.
+    *   Application result handling for validation and not-found flows.
 
 ## 4. Integration Test Rules
 

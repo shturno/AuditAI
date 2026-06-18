@@ -15,7 +15,7 @@ This document outlines the core business rules, entities, and workflows for the 
 *   **User**: Represents a person who can log in to the system. Has an assigned role.
 *   **Organization**: The top-level entity. A company or a major division.
 *   **Department**: A business unit within an organization.
-*   **Control**: The central entity for an audit. Belongs to a Department.
+*   **Control**: The central entity for an audit. Belongs to an Organization, may belong to a Department, and carries category, frequency, and status data.
 *   **Evidence**: Linked to a single Control. Contains metadata and a reference to the stored file.
 *   **AuditFinding**: Linked to a single Control. Describes a problem or gap.
 *   **ActionPlan**: Linked to a single AuditFinding. Details the remediation steps.

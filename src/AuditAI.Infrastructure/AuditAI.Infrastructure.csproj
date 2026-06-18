@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\AuditAI.Application\AuditAI.Application.csproj" />
     <ProjectReference Include="..\AuditAI.Domain\AuditAI.Domain.csproj" />
   </ItemGroup>
 

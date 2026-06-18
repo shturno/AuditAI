@@ -10,6 +10,7 @@ public sealed class Control : Entity
         Guid organizationId,
         Guid? departmentId,
         string code,
+        string category,
         string title,
         string? description,
         ControlStatus status,
@@ -20,6 +21,7 @@ public sealed class Control : Entity
         OrganizationId = Guard.AgainstEmpty(organizationId, nameof(organizationId));
         DepartmentId = departmentId;
         Code = Guard.AgainstNullOrWhiteSpace(code, nameof(code));
+        Category = Guard.AgainstNullOrWhiteSpace(category, nameof(category));
         Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         Status = status;
@@ -33,6 +35,8 @@ public sealed class Control : Entity
     public Guid? DepartmentId { get; private set; }
 
     public string Code { get; private set; }
+
+    public string Category { get; private set; }
 
     public string Title { get; private set; }
 
@@ -51,6 +55,7 @@ public sealed class Control : Entity
         Guid organizationId,
         Guid? departmentId,
         string code,
+        string category,
         string title,
         string? description,
         ControlFrequency frequency,
@@ -61,6 +66,7 @@ public sealed class Control : Entity
             organizationId,
             departmentId,
             code,
+            category,
             title,
             description,
             ControlStatus.Active,
@@ -70,12 +76,14 @@ public sealed class Control : Entity
 
     public void UpdateDetails(
         string code,
+        string category,
         string title,
         string? description,
         ControlFrequency frequency,
         DateTimeOffset updatedAt)
     {
         Code = Guard.AgainstNullOrWhiteSpace(code, nameof(code));
+        Category = Guard.AgainstNullOrWhiteSpace(category, nameof(category));
         Title = Guard.AgainstNullOrWhiteSpace(title, nameof(title));
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
         Frequency = frequency;
