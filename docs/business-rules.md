@@ -70,9 +70,12 @@ This document outlines the core business rules, entities, and workflows for the 
 *   Evidence must belong to a valid, existing Control.
 *   An AuditFinding must be linked to a Control.
 *   An ActionPlan must be linked to an AuditFinding.
+*   An ActionPlan must be created against an existing Audit Finding.
+*   The assigned user of an Action Plan must exist and belong to the same Organization as the Finding's Control.
 *   An ActionPlan's due date cannot be earlier than its creation date.
 *   When a Reviewer rejects evidence, a rejection reason is mandatory.
 *   A `Critical` finding cannot be marked as `Resolved` if it has any `Open` or `InProgress` action plans.
+*   `Overdue` Action Plans also block resolution of `Critical` findings until they are completed or cancelled.
 *   A Control must belong to an existing Organization.
 *   If a Control references a Department, that Department must exist and belong to the same Organization as the Control.
 *   Evidence must be submitted by an existing User.
@@ -81,6 +84,7 @@ This document outlines the core business rules, entities, and workflows for the 
 *   An Audit Finding must be created against an existing Control.
 *   The creator of an Audit Finding must exist and belong to the same Organization as the target Control.
 *   Audit Findings move through `Open`, `InProgress`, `Resolved`, and `Cancelled` according to domain transition rules.
+*   Action Plans start as `Open` and move through `InProgress`, `Completed`, `Overdue`, and `Cancelled` according to domain transition rules.
 
 ### Responsibility Notes
 
@@ -89,6 +93,7 @@ This document outlines the core business rules, entities, and workflows for the 
 *   Organization and Department existence checks for Control create/update are Application-layer orchestration rules, not Domain rules.
 *   Control/User existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
 *   Control/User existence checks and organization consistency for Audit Finding creation are Application-layer orchestration rules, not Domain rules.
+*   Audit Finding/User existence checks and organization consistency for Action Plan create/update are Application-layer orchestration rules, not Domain rules.
 *   Authenticated tenant authorization is future work and is not implemented yet.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.
@@ -125,6 +130,7 @@ The future integration of AI will follow these core principles:
 *   **No Automatic State Changes**: AI modules will not be allowed to automatically change the status of critical entities like `AuditFinding` or `ActionPlan`.
 *   **No Automatic Evidence Review**: AI modules will not automatically accept or reject evidence.
 *   **No Automatic Severity Suggestion Enforcement**: AI may suggest a severity in the future, but it will not directly set or resolve findings automatically.
+*   **No Automatic Action Plan Generation Yet**: AI-generated action plan suggestions are future work and are not implemented in the current system.
 
 ## 9. Out-of-Scope Features (for now)
 

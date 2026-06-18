@@ -1,4 +1,5 @@
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.Controls.Interfaces;
 using AuditAI.Application.Evidence.Interfaces;
@@ -25,7 +26,9 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<IControlRepository, ControlRepository>();
+        services.AddScoped<IActionPlanRepository, ActionPlanRepository>();
         services.AddScoped<IAuditFindingRepository, AuditFindingRepository>();
+        services.AddScoped<IAuditFindingLookup, ActionPlanReferenceLookup>();
         services.AddScoped<IOrganizationLookup, ControlReferenceLookup>();
         services.AddScoped<IDepartmentLookup, ControlReferenceLookup>();
         services.AddScoped<IEvidenceRepository, EvidenceRepository>();

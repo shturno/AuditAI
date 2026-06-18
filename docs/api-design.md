@@ -42,6 +42,11 @@ Current implemented endpoints are intentionally unversioned during the early bui
 *   `GET /api/audit-findings`
 *   `PUT /api/audit-findings/{id}`
 *   `PATCH /api/audit-findings/{id}/status`
+*   `POST /api/action-plans`
+*   `GET /api/action-plans/{id}`
+*   `GET /api/action-plans`
+*   `PUT /api/action-plans/{id}`
+*   `PATCH /api/action-plans/{id}/status`
 
 ## 3. HTTP Status Code Rules
 

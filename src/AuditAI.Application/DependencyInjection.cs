@@ -1,3 +1,6 @@
+using AuditAI.Application.ActionPlans.Contracts;
+using AuditAI.Application.ActionPlans.Services;
+using AuditAI.Application.ActionPlans.Validators;
 using AuditAI.Application.Controls.Contracts;
 using AuditAI.Application.Controls.Services;
 using AuditAI.Application.Controls.Validators;
@@ -21,6 +24,11 @@ public static class DependencyInjection
         services.AddScoped<ListControlsService>();
         services.AddScoped<UpdateControlService>();
         services.AddScoped<DeactivateControlService>();
+        services.AddScoped<CreateActionPlanService>();
+        services.AddScoped<GetActionPlanByIdService>();
+        services.AddScoped<ListActionPlansService>();
+        services.AddScoped<UpdateActionPlanService>();
+        services.AddScoped<ChangeActionPlanStatusService>();
         services.AddScoped<CreateAuditFindingService>();
         services.AddScoped<GetAuditFindingByIdService>();
         services.AddScoped<ListAuditFindingsService>();
@@ -35,6 +43,10 @@ public static class DependencyInjection
         services.AddScoped<IValidator<CreateControlRequest>, CreateControlRequestValidator>();
         services.AddScoped<IValidator<UpdateControlRequest>, UpdateControlRequestValidator>();
         services.AddScoped<IValidator<ControlQueryParameters>, ControlQueryParametersValidator>();
+        services.AddScoped<IValidator<CreateActionPlanRequest>, CreateActionPlanRequestValidator>();
+        services.AddScoped<IValidator<UpdateActionPlanRequest>, UpdateActionPlanRequestValidator>();
+        services.AddScoped<IValidator<ChangeActionPlanStatusRequest>, ChangeActionPlanStatusRequestValidator>();
+        services.AddScoped<IValidator<ActionPlanQueryParameters>, ActionPlanQueryParametersValidator>();
         services.AddScoped<IValidator<CreateAuditFindingRequest>, CreateAuditFindingRequestValidator>();
         services.AddScoped<IValidator<UpdateAuditFindingRequest>, UpdateAuditFindingRequestValidator>();
         services.AddScoped<IValidator<ChangeAuditFindingStatusRequest>, ChangeAuditFindingStatusRequestValidator>();

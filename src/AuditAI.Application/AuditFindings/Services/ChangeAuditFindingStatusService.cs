@@ -1,6 +1,7 @@
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Mappers;
+using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -13,15 +14,18 @@ namespace AuditAI.Application.AuditFindings.Services;
 public sealed class ChangeAuditFindingStatusService
 {
     private readonly IAuditFindingRepository _auditFindingRepository;
+    private readonly IActionPlanRepository _actionPlanRepository;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<ChangeAuditFindingStatusRequest> _validator;
 
     public ChangeAuditFindingStatusService(
         IAuditFindingRepository auditFindingRepository,
+        IActionPlanRepository actionPlanRepository,
         IDateTimeProvider dateTimeProvider,
         IValidator<ChangeAuditFindingStatusRequest> validator)
     {
         _auditFindingRepository = auditFindingRepository;
+        _actionPlanRepository = actionPlanRepository;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -51,6 +55,15 @@ public sealed class ChangeAuditFindingStatusService
                     auditFinding.MarkInProgress(_dateTimeProvider.UtcNow);
                     break;
                 case AuditFindingStatus.Resolved:
+                    if (auditFinding.Severity == AuditFindingSeverity.Critical &&
+                        await _actionPlanRepository.HasBlockingActionPlansForFindingAsync(auditFinding.Id, cancellationToken))
+                    {
+                        return Result<AuditFindingResponse>.ValidationFailure(
+                        [
+                            new ValidationError("Status", "A critical finding cannot be resolved while it has open action plans.")
+                        ]);
+                    }
+
                     auditFinding.Resolve(_dateTimeProvider.UtcNow);
                     break;
                 case AuditFindingStatus.Cancelled:

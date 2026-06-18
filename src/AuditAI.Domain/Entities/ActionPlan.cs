@@ -74,24 +74,54 @@ public sealed class ActionPlan : Entity
 
     public void MarkInProgress(DateTimeOffset updatedAt)
     {
+        if (Status != ActionPlanStatus.Open)
+        {
+            throw new DomainRuleViolationException("Only open action plans can be moved to in progress.");
+        }
+
         Status = ActionPlanStatus.InProgress;
         UpdatedAt = updatedAt;
     }
 
     public void Complete(DateTimeOffset updatedAt)
     {
+        if (Status is ActionPlanStatus.Completed or ActionPlanStatus.Cancelled)
+        {
+            throw new DomainRuleViolationException("Completed or cancelled action plans cannot be completed again.");
+        }
+
         Status = ActionPlanStatus.Completed;
         UpdatedAt = updatedAt;
     }
 
     public void MarkOverdue(DateTimeOffset updatedAt)
     {
+        if (Status is ActionPlanStatus.Completed or ActionPlanStatus.Cancelled)
+        {
+            throw new DomainRuleViolationException("Completed or cancelled action plans cannot be marked as overdue.");
+        }
+
+        if (Status == ActionPlanStatus.Overdue)
+        {
+            throw new DomainRuleViolationException("Action plan is already overdue.");
+        }
+
         Status = ActionPlanStatus.Overdue;
         UpdatedAt = updatedAt;
     }
 
     public void Cancel(DateTimeOffset updatedAt)
     {
+        if (Status == ActionPlanStatus.Completed)
+        {
+            throw new DomainRuleViolationException("Completed action plans cannot be cancelled.");
+        }
+
+        if (Status == ActionPlanStatus.Cancelled)
+        {
+            throw new DomainRuleViolationException("Cancelled action plans cannot be cancelled again.");
+        }
+
         Status = ActionPlanStatus.Cancelled;
         UpdatedAt = updatedAt;
     }

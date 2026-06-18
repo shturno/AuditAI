@@ -1,6 +1,7 @@
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Services;
+using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.AuditFindings.Validators;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
@@ -155,7 +156,7 @@ public sealed class AuditFindingServiceTests
             clock.UtcNow);
         repository.StoredFindings.Add(finding);
 
-        var service = new ChangeAuditFindingStatusService(repository, clock, new ChangeAuditFindingStatusRequestValidator());
+        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -180,7 +181,7 @@ public sealed class AuditFindingServiceTests
             AuditFindingSeverity.High,
             clock.UtcNow);
         repository.StoredFindings.Add(finding);
-        var service = new ChangeAuditFindingStatusService(repository, clock, new ChangeAuditFindingStatusRequestValidator());
+        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var inProgressResult = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -205,7 +206,7 @@ public sealed class AuditFindingServiceTests
             AuditFindingSeverity.High,
             clock.UtcNow);
         repository.StoredFindings.Add(finding);
-        var service = new ChangeAuditFindingStatusService(repository, clock, new ChangeAuditFindingStatusRequestValidator());
+        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), clock, new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -214,6 +215,60 @@ public sealed class AuditFindingServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AuditFindingStatus.Cancelled, result.Value!.Status);
+    }
+
+    [Fact]
+    public async Task Should_NotResolveCriticalFinding_When_BlockingActionPlansExistInRepository()
+    {
+        var clock = new FakeDateTimeProvider();
+        var repository = new FakeAuditFindingRepository();
+        var actionPlanRepository = new FakeActionPlanRepository { HasBlockingActionPlans = true };
+        var finding = AuditFinding.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Critical finding",
+            "Critical control gap.",
+            AuditFindingSeverity.Critical,
+            clock.UtcNow);
+        finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
+        repository.StoredFindings.Add(finding);
+        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, clock, new ChangeAuditFindingStatusRequestValidator());
+
+        var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
+        {
+            Status = AuditFindingStatus.Resolved
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "Status");
+    }
+
+    [Fact]
+    public async Task Should_ResolveCriticalFinding_When_BlockingActionPlansDoNotExistInRepository()
+    {
+        var clock = new FakeDateTimeProvider();
+        var repository = new FakeAuditFindingRepository();
+        var actionPlanRepository = new FakeActionPlanRepository { HasBlockingActionPlans = false };
+        var finding = AuditFinding.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Critical finding",
+            "Critical control gap.",
+            AuditFindingSeverity.Critical,
+            clock.UtcNow);
+        finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
+        repository.StoredFindings.Add(finding);
+        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, clock, new ChangeAuditFindingStatusRequestValidator());
+
+        var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
+        {
+            Status = AuditFindingStatus.Resolved
+        });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(AuditFindingStatus.Resolved, result.Value!.Status);
     }
 
     private sealed class FakeAuditFindingRepository : IAuditFindingRepository
@@ -244,6 +299,41 @@ public sealed class AuditFindingServiceTests
         public Task SaveChangesAsync(CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeActionPlanRepository : IActionPlanRepository
+    {
+        public bool HasBlockingActionPlans { get; init; }
+
+        public Task AddAsync(ActionPlan actionPlan, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<PagedResult<ActionPlan>> ListAsync(AuditAI.Application.ActionPlans.Contracts.ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid auditFindingId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(HasBlockingActionPlans);
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
         }
     }
 
