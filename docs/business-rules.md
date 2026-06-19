@@ -131,13 +131,42 @@ Audit logs are not updated or deleted through normal API flows.
 
 ## 7. Dashboard Aggregation Rules
 
-The main dashboard will provide a summary of:
+The main dashboard provides a read-only summary of:
 
-*   Total number of controls.
-*   Number of evidence items with a `Pending` status.
-*   Number of `Open` audit findings.
-*   Number of `Critical` audit findings.
-*   Number of `Overdue` action plans.
+### Controls
+*   **Total**: All controls in the organization
+*   **Active**: Controls with `ControlStatus.Active`
+*   **Inactive**: Controls with `ControlStatus.Inactive`
+
+### Evidence
+*   **Total**: All evidence items in the organization
+*   **Pending**: Evidence with `EvidenceStatus.Pending`
+*   **Accepted**: Evidence with `EvidenceStatus.Accepted`
+*   **Rejected**: Evidence with `EvidenceStatus.Rejected`
+
+### Audit Findings
+*   **Total**: All audit findings in the organization
+*   **Status breakdown**: Open, InProgress, Resolved, Cancelled
+*   **Severity breakdown**: Low, Medium, High, Critical
+*   **Unresolved Critical**: Count of findings with `AuditFindingSeverity.Critical` and status `Open` or `InProgress`
+
+### Action Plans
+*   **Total**: All action plans in the organization
+*   **Status breakdown**: Open, InProgress, Completed, Cancelled
+*   **Overdue**: Action plans with `DueDate < now` and status not Completed/Cancelled
+*   **Due Soon**: Action plans with `now <= DueDate <= now + 7 days` and status not Completed/Cancelled
+
+### Recent Activity
+*   Last N audit logs (N controlled by `recentLimit` query parameter, default 5, max 20)
+*   Ordered by timestamp descending
+*   Includes: action, entity name, entity ID, user ID, timestamp
+
+### Access Control
+*   **Authentication**: JWT required
+*   **Authorization**: Available to `Admin`, `Auditor`, `Reviewer`
+*   **Tenant Scoping**: All data is scoped to the authenticated user's `OrganizationId` from JWT
+*   **No Cross-Tenant Access**: Data from other organizations is never included
+*   **No AI Insights**: Dashboard does not include AI-generated insights or cross-organization analytics
 
 ## 8. AI-Assisted Workflow Principles
 

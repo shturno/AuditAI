@@ -172,3 +172,21 @@ When AI-related endpoints are added, they will follow specific conventions:
   "disclaimer": "This summary is AI-generated and should be verified by a human reviewer."
 }
 ```
+
+## 10. Dashboard Summary Endpoint
+
+*   **Endpoint**: `GET /api/dashboard/summary`
+*   **Access**: Read-only, available to `Admin`, `Auditor`, `Reviewer`
+*   **Authentication**: JWT required; tenant scoping enforced via JWT `OrganizationId`
+*   **Authorization**: No RBAC filtering beyond organization scoping
+*   **Query Parameters**:
+    *   `recentLimit` (int, default 5, max 20): Number of recent audit logs to return
+    *   `includeRecentActivity` (bool, default true): Whether to include recent activity in response
+*   **Response**: Aggregate counts and status breakdowns for Controls, Evidence, AuditFindings, and ActionPlans, plus recent activity
+*   **Behavior**:
+    *   Returns 401 if not authenticated
+    *   Returns 403 if organization is not set or user role is not authorized
+    *   Returns 200 with zero counts if organization has no data
+    *   Does not accept OrganizationId from query/body (tenant scoping is enforced via JWT)
+    *   Does not create, update, or delete any data
+    *   Does not include AI insights or cross-organization analytics

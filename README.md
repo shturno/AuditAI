@@ -130,7 +130,7 @@ For more details, see [SECURITY.md](SECURITY.md).
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/AuditAI.git
+git clone https://github.com/shturno/AuditAI.git
 cd AuditAI
 ```
 

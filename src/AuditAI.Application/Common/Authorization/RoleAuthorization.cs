@@ -15,6 +15,7 @@ internal static class RoleAuthorization
     public const string ActionPlansReadForbiddenMessage = "The current user is not allowed to read action plans.";
     public const string ActionPlansManageForbiddenMessage = "The current user is not allowed to manage action plans.";
     public const string AuditLogsReadForbiddenMessage = "The current user is not allowed to read audit logs.";
+    public const string DashboardReadForbiddenMessage = "The current user is not allowed to read the dashboard.";
 
     public static bool CanReadControls(ICurrentUser currentUser) => HasAnyRole(currentUser, UserRole.Admin, UserRole.Auditor, UserRole.Reviewer);
 
@@ -35,6 +36,8 @@ internal static class RoleAuthorization
     public static bool CanManageActionPlans(ICurrentUser currentUser) => HasAnyRole(currentUser, UserRole.Admin, UserRole.Auditor);
 
     public static bool CanReadAuditLogs(ICurrentUser currentUser) => HasAnyRole(currentUser, UserRole.Admin, UserRole.Auditor);
+
+    public static bool CanReadDashboard(ICurrentUser currentUser) => HasAnyRole(currentUser, UserRole.Admin, UserRole.Auditor, UserRole.Reviewer);
 
     private static bool HasAnyRole(ICurrentUser currentUser, params UserRole[] allowedRoles)
     {

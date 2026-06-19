@@ -5,6 +5,7 @@ using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.Auth.Interfaces;
 using AuditAI.Application.Controls.Interfaces;
 using AuditAI.Application.Evidence.Interfaces;
+using AuditAI.Application.Dashboard.Interfaces;
 using AuditAI.Infrastructure.Auth.Jwt;
 using AuditAI.Infrastructure.Auth.PasswordHashing;
 using AuditAI.Infrastructure.Persistence.Lookups;
@@ -49,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IOrganizationLookup, ControlReferenceLookup>();
         services.AddScoped<IDepartmentLookup, ControlReferenceLookup>();
         services.AddScoped<IEvidenceRepository, EvidenceRepository>();
+        services.AddScoped<IDashboardSummaryRepository, DashboardSummaryRepository>();
         services.AddScoped<IControlLookup, EvidenceReferenceLookup>();
         services.AddScoped<AuditAI.Application.Evidence.Interfaces.IUserLookup, EvidenceReferenceLookup>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();

@@ -60,7 +60,7 @@ This document outlines the planned development phases for the AuditAI project.
 
 *   **Goal**: Add advanced business logic and prepare for AI integration.
 *   **Tasks**:
-    *   [ ] Implement the dashboard summary endpoint.
+    *   [x] Implement the dashboard summary endpoint.
     *   [ ] Implement audit logging for sensitive actions.
     *   [ ] Define the AI service interfaces in the `Application` layer (e.g., `IEvidenceSummarizationService`).
     *   [ ] Create mock implementations of the AI interfaces for testing.

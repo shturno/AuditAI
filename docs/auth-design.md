@@ -351,3 +351,10 @@ Recommended next implementation order:
 3. Consider `is_active` if user deactivation becomes necessary.
 
 This order minimizes disruption and lets the team validate the auth foundation before RBAC and tenant authorization spread across all slices.
+
+## 12. Dashboard Authorization
+
+*   `GET /api/dashboard/summary` is accessible to `Admin`, `Auditor`, and `Reviewer`
+*   Tenant scoping is enforced via JWT `OrganizationId` — no data from other organizations is returned
+*   No RBAC filtering beyond organization boundary
+*   Unauthenticated requests receive 401; missing organization receives 403

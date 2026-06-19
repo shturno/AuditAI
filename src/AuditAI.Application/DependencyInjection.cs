@@ -17,6 +17,9 @@ using AuditAI.Application.AuditFindings.Validators;
 using AuditAI.Application.Evidence.Contracts;
 using AuditAI.Application.Evidence.Services;
 using AuditAI.Application.Evidence.Validators;
+using AuditAI.Application.Dashboard.Contracts;
+using AuditAI.Application.Dashboard.Services;
+using AuditAI.Application.Dashboard.Validators;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<ListEvidenceService>();
         services.AddScoped<AcceptEvidenceService>();
         services.AddScoped<RejectEvidenceService>();
+        services.AddScoped<GetDashboardSummaryService>();
 
         services.AddScoped<IValidator<CreateControlRequest>, CreateControlRequestValidator>();
         services.AddScoped<IValidator<UpdateControlRequest>, UpdateControlRequestValidator>();
@@ -67,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IValidator<ReviewEvidenceRequest>, ReviewEvidenceRequestValidator>();
         services.AddScoped<IValidator<EvidenceQueryParameters>, EvidenceQueryParametersValidator>();
         services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
+        services.AddScoped<IValidator<DashboardQueryParameters>, DashboardQueryParametersValidator>();
 
         return services;
     }
