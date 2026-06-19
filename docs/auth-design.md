@@ -19,6 +19,13 @@ Implemented now:
 * Evidence submission/review actors resolved from the authenticated user
 * Evidence organization scope resolved from `org_id`
 * Evidence audit logs now use the authenticated actor
+* AuditFindings endpoints protected with JWT
+* AuditFindings `CreatedByUserId` resolved from the authenticated user
+* AuditFindings organization scope resolved from `org_id`
+* AuditFindings audit logs now use the authenticated actor
+* ActionPlans endpoints protected with JWT
+* ActionPlans organization scope resolved from `org_id`
+* ActionPlans audit logs now use the authenticated actor
 
 Not implemented yet:
 
@@ -29,7 +36,7 @@ Not implemented yet:
 * MFA
 * external providers
 * protection of all existing business endpoints
-* authenticated actor resolution for non-Control and non-Evidence audit slices
+* authenticated actor resolution for AuditLogs read access
 
 ## 1. Recommendation
 
@@ -189,7 +196,7 @@ Current token behavior:
 
 * short-lived access token
 * no refresh tokens
-* current protected Controls and Evidence behavior uses `org_id` as the tenant boundary
+* current protected Controls, Evidence, AuditFindings, and ActionPlans behavior uses `org_id` as the tenant boundary
 
 ## 6. Authorization Plan
 
@@ -251,20 +258,20 @@ Examples:
 * `ActionPlan.AssignedToUserId` remains business data
 * `Evidence.SubmittedByUserId` now comes from the current actor
 * `Evidence.ReviewerUserId` now comes from the current actor
-* `AuditFinding.CreatedByUserId` likely stops coming from request and becomes current actor
+* `AuditFinding.CreatedByUserId` now comes from the current actor
 
 This separation matters:
 
 * the actor is who performed the command
 * business data may still reference another user for assignment or ownership
 
-## 8. Existing Request Contracts Likely To Change Later
+## 8. Existing Request Contracts
 
-These contracts will likely need refactor once auth exists:
+Current contract behavior:
 
-* `CreateAuditFindingRequest.CreatedByUserId`
-  * likely removed from request
-  * derive from `ICurrentUser`
+* `CreateAuditFindingRequest`
+  * `CreatedByUserId` has been removed from the request
+  * creator is derived from `ICurrentUser`
 
 Likely unchanged:
 
@@ -331,9 +338,8 @@ Recommended test layering:
 
 Recommended next implementation order:
 
-1. Stop trusting actor ids from request contracts where actor should be the authenticated user.
-2. Extend authenticated organization scoping to AuditFindings and ActionPlans.
-3. Add role and organization enforcement incrementally.
-4. Consider `is_active` if user deactivation becomes necessary.
+1. Add role and organization enforcement incrementally.
+2. Decide whether AuditLogs read endpoints should remain anonymous or move behind authentication.
+3. Consider `is_active` if user deactivation becomes necessary.
 
 This order minimizes disruption and lets the team validate the auth foundation before RBAC and tenant authorization spread across all slices.

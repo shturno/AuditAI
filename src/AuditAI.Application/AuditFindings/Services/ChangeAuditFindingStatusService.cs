@@ -1,10 +1,10 @@
-using AuditAI.Application.AuditLogs.Contracts;
-using AuditAI.Application.AuditLogs.Interfaces;
-using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Mappers;
 using AuditAI.Application.ActionPlans.Interfaces;
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -18,23 +18,23 @@ public sealed class ChangeAuditFindingStatusService
 {
     private readonly IAuditFindingRepository _auditFindingRepository;
     private readonly IActionPlanRepository _actionPlanRepository;
-    private readonly IAuditFindingLookup _auditFindingLookup;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly ICurrentUser _currentUser;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<ChangeAuditFindingStatusRequest> _validator;
 
     public ChangeAuditFindingStatusService(
         IAuditFindingRepository auditFindingRepository,
         IActionPlanRepository actionPlanRepository,
-        IAuditFindingLookup auditFindingLookup,
         IAuditLogWriter auditLogWriter,
+        ICurrentUser currentUser,
         IDateTimeProvider dateTimeProvider,
         IValidator<ChangeAuditFindingStatusRequest> validator)
     {
         _auditFindingRepository = auditFindingRepository;
         _actionPlanRepository = actionPlanRepository;
-        _auditFindingLookup = auditFindingLookup;
         _auditLogWriter = auditLogWriter;
+        _currentUser = currentUser;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -44,13 +44,18 @@ public sealed class ChangeAuditFindingStatusService
         ChangeAuditFindingStatusRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!AuditFindingsCurrentUserContext.TryGetActor(_currentUser, out _, out var organizationId))
+        {
+            return Result<AuditFindingResponse>.Unauthorized(AuditFindingsCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             return Result<AuditFindingResponse>.ValidationFailure(validationResult.ToValidationErrors());
         }
 
-        var auditFinding = await _auditFindingRepository.GetByIdForUpdateAsync(auditFindingId, cancellationToken);
+        var auditFinding = await _auditFindingRepository.GetByIdForUpdateAsync(auditFindingId, organizationId, cancellationToken);
         if (auditFinding is null)
         {
             return Result<AuditFindingResponse>.NotFound("Audit finding was not found.");
@@ -65,7 +70,7 @@ public sealed class ChangeAuditFindingStatusService
                     break;
                 case AuditFindingStatus.Resolved:
                     if (auditFinding.Severity == AuditFindingSeverity.Critical &&
-                        await _actionPlanRepository.HasBlockingActionPlansForFindingAsync(auditFinding.Id, cancellationToken))
+                        await _actionPlanRepository.HasBlockingActionPlansForFindingAsync(organizationId, auditFinding.Id, cancellationToken))
                     {
                         return Result<AuditFindingResponse>.ValidationFailure(
                         [
@@ -93,12 +98,11 @@ public sealed class ChangeAuditFindingStatusService
             ]);
         }
 
-        var organizationId = await _auditFindingLookup.GetFindingOrganizationIdAsync(auditFinding.Id, cancellationToken);
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
-                organizationId!.Value,
-                null,
-                AuditAI.Domain.Enums.AuditLogAction.AuditFindingStatusChanged,
+                organizationId,
+                _currentUser.UserId,
+                AuditLogAction.AuditFindingStatusChanged,
                 nameof(AuditAI.Domain.Entities.AuditFinding),
                 auditFinding.Id,
                 AuditLogMetadata.Build(

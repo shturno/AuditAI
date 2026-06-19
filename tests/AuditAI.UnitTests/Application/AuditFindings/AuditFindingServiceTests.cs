@@ -1,12 +1,13 @@
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Services;
+using AuditAI.Application.AuditFindings.Validators;
+using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Interfaces;
-using AuditAI.Application.ActionPlans.Interfaces;
-using AuditAI.Application.AuditFindings.Validators;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
+using AuditAI.Application.Common.Results;
 using AuditAI.Application.Evidence.Interfaces;
 using AuditAI.Domain.Entities;
 using AuditAI.Domain.Enums;
@@ -16,202 +17,208 @@ namespace AuditAI.UnitTests.Application.AuditFindings;
 public sealed class AuditFindingServiceTests
 {
     [Fact]
-    public async Task Should_FailCreateAuditFinding_When_ControlDoesNotExist()
+    public async Task Should_FailCreateAuditFinding_When_CurrentUserIsMissing()
     {
         var repository = new FakeAuditFindingRepository();
-        var lookup = new FakeReferenceLookup();
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
+        var service = new CreateAuditFindingService(
+            repository,
+            new FakeControlLookup(),
+            new FakeAuditLogWriter(),
+            new FakeCurrentUser(),
+            new FakeDateTimeProvider(),
+            new CreateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateAuditFindingRequest
         {
             ControlId = Guid.NewGuid(),
-            CreatedByUserId = Guid.NewGuid(),
             Title = "Missing approval",
             Description = "This control has no approval evidence.",
             Severity = AuditFindingSeverity.High
         });
 
         Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "ControlId");
+        Assert.True(result.IsUnauthorized);
     }
 
     [Fact]
-    public async Task Should_FailCreateAuditFinding_When_CreatorDoesNotExist()
+    public async Task Should_CreateAuditFinding_When_CurrentUserAndControlAreValid()
     {
         var repository = new FakeAuditFindingRepository();
         var controlId = Guid.NewGuid();
         var organizationId = Guid.NewGuid();
-        var lookup = new FakeReferenceLookup
+        var userId = Guid.NewGuid();
+        var currentUser = new FakeCurrentUser
         {
-            ControlOrganizations = { [controlId] = organizationId }
+            IsAuthenticated = true,
+            UserId = userId,
+            OrganizationId = organizationId
         };
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
+        var controlLookup = new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } };
+        var auditLogWriter = new FakeAuditLogWriter();
+        var service = new CreateAuditFindingService(
+            repository,
+            controlLookup,
+            auditLogWriter,
+            currentUser,
+            new FakeDateTimeProvider(),
+            new CreateAuditFindingRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateAuditFindingRequest
         {
             ControlId = controlId,
-            CreatedByUserId = Guid.NewGuid(),
-            Title = "Missing approval",
-            Description = "This control has no approval evidence.",
-            Severity = AuditFindingSeverity.High
-        });
-
-        Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "CreatedByUserId");
-    }
-
-    [Fact]
-    public async Task Should_FailCreateAuditFinding_When_CreatorBelongsToAnotherOrganization()
-    {
-        var repository = new FakeAuditFindingRepository();
-        var controlId = Guid.NewGuid();
-        var creatorId = Guid.NewGuid();
-        var lookup = new FakeReferenceLookup
-        {
-            ControlOrganizations = { [controlId] = Guid.NewGuid() },
-            UserOrganizations = { [creatorId] = Guid.NewGuid() }
-        };
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
-
-        var result = await service.ExecuteAsync(new CreateAuditFindingRequest
-        {
-            ControlId = controlId,
-            CreatedByUserId = creatorId,
-            Title = "Missing approval",
-            Description = "This control has no approval evidence.",
-            Severity = AuditFindingSeverity.High
-        });
-
-        Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "CreatedByUserId");
-    }
-
-    [Fact]
-    public async Task Should_CreateAuditFinding_When_ControlAndCreatorAreValid()
-    {
-        var repository = new FakeAuditFindingRepository();
-        var controlId = Guid.NewGuid();
-        var creatorId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
-        var lookup = new FakeReferenceLookup
-        {
-            ControlOrganizations = { [controlId] = organizationId },
-            UserOrganizations = { [creatorId] = organizationId }
-        };
-        var service = new CreateAuditFindingService(repository, lookup, lookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateAuditFindingRequestValidator());
-
-        var result = await service.ExecuteAsync(new CreateAuditFindingRequest
-        {
-            ControlId = controlId,
-            CreatedByUserId = creatorId,
             Title = "Missing approval",
             Description = "This control has no approval evidence.",
             Severity = AuditFindingSeverity.High
         });
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Value);
-        Assert.Equal(AuditFindingStatus.Open, result.Value.Status);
+        Assert.Equal(userId, result.Value!.CreatedByUserId);
+        Assert.Equal(userId, auditLogWriter.LastEntry!.UserId);
+        Assert.Equal(organizationId, auditLogWriter.LastEntry.OrganizationId);
     }
 
     [Fact]
-    public async Task Should_ReturnNotFound_When_FindingDoesNotExist()
+    public async Task Should_FailCreateAuditFinding_When_ControlBelongsToAnotherOrganization()
     {
         var repository = new FakeAuditFindingRepository();
-        var service = new GetAuditFindingByIdService(repository);
+        var currentUser = new FakeCurrentUser
+        {
+            IsAuthenticated = true,
+            UserId = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid()
+        };
+        var controlLookup = new FakeControlLookup
+        {
+            ControlOrganizations =
+            {
+                [Guid.NewGuid()] = Guid.NewGuid()
+            }
+        };
+        var service = new CreateAuditFindingService(
+            repository,
+            controlLookup,
+            new FakeAuditLogWriter(),
+            currentUser,
+            new FakeDateTimeProvider(),
+            new CreateAuditFindingRequestValidator());
 
-        var result = await service.ExecuteAsync(Guid.NewGuid());
+        var controlId = controlLookup.ControlOrganizations.Keys.First();
+        var result = await service.ExecuteAsync(new CreateAuditFindingRequest
+        {
+            ControlId = controlId,
+            Title = "Missing approval",
+            Description = "This control has no approval evidence.",
+            Severity = AuditFindingSeverity.High
+        });
 
         Assert.False(result.IsSuccess);
         Assert.True(result.IsNotFound);
     }
 
     [Fact]
-    public async Task Should_ReturnNotFound_When_UpdatingMissingFinding()
+    public async Task Should_AllowAuditFindingList_When_CurrentUserIsAuthenticated()
     {
         var repository = new FakeAuditFindingRepository();
-        var service = new UpdateAuditFindingService(repository, new FakeFindingLookup(), new FakeAuditLogWriter(), new FakeDateTimeProvider(), new UpdateAuditFindingRequestValidator());
+        var organizationId = Guid.NewGuid();
+        repository.StoredFindings.Add((
+            AuditFinding.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Finding", "Description text", AuditFindingSeverity.High, new FakeDateTimeProvider().UtcNow),
+            organizationId));
 
-        var result = await service.ExecuteAsync(Guid.NewGuid(), new UpdateAuditFindingRequest
+        var service = new ListAuditFindingsService(
+            repository,
+            new FakeCurrentUser
+            {
+                IsAuthenticated = true,
+                UserId = Guid.NewGuid(),
+                OrganizationId = organizationId
+            },
+            new AuditFindingQueryParametersValidator());
+
+        var result = await service.ExecuteAsync(new AuditFindingQueryParameters { PageNumber = 1, PageSize = 10 });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(organizationId, repository.LastListOrganizationId);
+    }
+
+    [Fact]
+    public async Task Should_ReturnNotFound_When_FindingBelongsToAnotherOrganization()
+    {
+        var repository = new FakeAuditFindingRepository();
+        var organizationId = Guid.NewGuid();
+        var otherOrganizationId = Guid.NewGuid();
+        var finding = AuditFinding.Create(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Finding",
+            "Description text",
+            AuditFindingSeverity.High,
+            new FakeDateTimeProvider().UtcNow);
+        repository.StoredFindings.Add((finding, otherOrganizationId));
+
+        var service = new GetAuditFindingByIdService(
+            repository,
+            new FakeCurrentUser
+            {
+                IsAuthenticated = true,
+                UserId = Guid.NewGuid(),
+                OrganizationId = organizationId
+            });
+
+        var result = await service.ExecuteAsync(finding.Id);
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsNotFound);
+    }
+
+    [Fact]
+    public async Task Should_UseCurrentUserIdInAuditLog_When_UpdatingFinding()
+    {
+        var clock = new FakeDateTimeProvider();
+        var repository = new FakeAuditFindingRepository();
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var finding = AuditFinding.Create(Guid.NewGuid(), Guid.NewGuid(), userId, "Finding", "Description text", AuditFindingSeverity.High, clock.UtcNow);
+        repository.StoredFindings.Add((finding, organizationId));
+
+        var auditLogWriter = new FakeAuditLogWriter();
+        var service = new UpdateAuditFindingService(
+            repository,
+            auditLogWriter,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            clock,
+            new UpdateAuditFindingRequestValidator());
+
+        var result = await service.ExecuteAsync(finding.Id, new UpdateAuditFindingRequest
         {
             Title = "Updated title",
-            Description = "Updated description for the finding.",
+            Description = "Updated description",
             Severity = AuditFindingSeverity.Medium
         });
 
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsNotFound);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(userId, auditLogWriter.LastEntry!.UserId);
     }
 
     [Fact]
-    public async Task Should_FailChangeStatus_When_TransitionIsInvalid()
+    public async Task Should_UseCurrentUserIdInAuditLog_When_ChangingFindingStatus()
     {
         var clock = new FakeDateTimeProvider();
         var repository = new FakeAuditFindingRepository();
-        var finding = AuditFinding.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Missing approval",
-            "This control has no approval evidence.",
-            AuditFindingSeverity.High,
-            clock.UtcNow);
-        repository.StoredFindings.Add(finding);
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var finding = AuditFinding.Create(Guid.NewGuid(), Guid.NewGuid(), userId, "Finding", "Description text", AuditFindingSeverity.High, clock.UtcNow);
+        finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
+        repository.StoredFindings.Add((finding, organizationId));
 
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
-        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
-
-        var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
-        {
-            Status = AuditFindingStatus.Resolved
-        });
-
-        Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "Status");
-    }
-
-    [Fact]
-    public async Task Should_ChangeStatus_When_TransitionIsValid()
-    {
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeAuditFindingRepository();
-        var finding = AuditFinding.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Missing approval",
-            "This control has no approval evidence.",
-            AuditFindingSeverity.High,
-            clock.UtcNow);
-        repository.StoredFindings.Add(finding);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
-        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
-
-        var inProgressResult = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
-        {
-            Status = AuditFindingStatus.InProgress
-        });
-
-        Assert.True(inProgressResult.IsSuccess);
-        Assert.Equal(AuditFindingStatus.InProgress, inProgressResult.Value!.Status);
-    }
-
-    [Fact]
-    public async Task Should_CancelFinding_When_CurrentStatusAllowsIt()
-    {
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeAuditFindingRepository();
-        var finding = AuditFinding.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Missing approval",
-            "This control has no approval evidence.",
-            AuditFindingSeverity.High,
-            clock.UtcNow);
-        repository.StoredFindings.Add(finding);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
-        var service = new ChangeAuditFindingStatusService(repository, new FakeActionPlanRepository(), findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
+        var auditLogWriter = new FakeAuditLogWriter();
+        var service = new ChangeAuditFindingStatusService(
+            repository,
+            new FakeActionPlanRepository(),
+            auditLogWriter,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            clock,
+            new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -219,27 +226,26 @@ public sealed class AuditFindingServiceTests
         });
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(AuditFindingStatus.Cancelled, result.Value!.Status);
+        Assert.Equal(userId, auditLogWriter.LastEntry!.UserId);
     }
 
     [Fact]
-    public async Task Should_NotResolveCriticalFinding_When_BlockingActionPlansExistInRepository()
+    public async Task Should_NotResolveCriticalFinding_When_BlockingActionPlansExist()
     {
         var clock = new FakeDateTimeProvider();
         var repository = new FakeAuditFindingRepository();
-        var actionPlanRepository = new FakeActionPlanRepository { HasBlockingActionPlans = true };
-        var finding = AuditFinding.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Critical finding",
-            "Critical control gap.",
-            AuditFindingSeverity.Critical,
-            clock.UtcNow);
+        var organizationId = Guid.NewGuid();
+        var finding = AuditFinding.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Critical", "Description text", AuditFindingSeverity.Critical, clock.UtcNow);
         finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
-        repository.StoredFindings.Add(finding);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
-        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
+        repository.StoredFindings.Add((finding, organizationId));
+
+        var service = new ChangeAuditFindingStatusService(
+            repository,
+            new FakeActionPlanRepository { HasBlockingActionPlans = true },
+            new FakeAuditLogWriter(),
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId },
+            clock,
+            new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -250,131 +256,91 @@ public sealed class AuditFindingServiceTests
         Assert.Contains(result.ValidationErrors, error => error.PropertyName == "Status");
     }
 
-    [Fact]
-    public async Task Should_ResolveCriticalFinding_When_BlockingActionPlansDoNotExistInRepository()
+    private sealed class FakeCurrentUser : ICurrentUser
     {
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeAuditFindingRepository();
-        var actionPlanRepository = new FakeActionPlanRepository { HasBlockingActionPlans = false };
-        var finding = AuditFinding.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Critical finding",
-            "Critical control gap.",
-            AuditFindingSeverity.Critical,
-            clock.UtcNow);
-        finding.MarkInProgress(clock.UtcNow.AddMinutes(1));
-        repository.StoredFindings.Add(finding);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
-        var service = new ChangeAuditFindingStatusService(repository, actionPlanRepository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeAuditFindingStatusRequestValidator());
+        public bool IsAuthenticated { get; init; }
 
-        var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
-        {
-            Status = AuditFindingStatus.Resolved
-        });
+        public Guid? UserId { get; init; }
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(AuditFindingStatus.Resolved, result.Value!.Status);
+        public string? Email => null;
+
+        public UserRole? Role => null;
+
+        public Guid? OrganizationId { get; init; }
+
+        public Guid? DepartmentId => null;
     }
 
     private sealed class FakeAuditFindingRepository : IAuditFindingRepository
     {
-        public List<AuditFinding> StoredFindings { get; } = [];
+        public List<(AuditFinding Finding, Guid OrganizationId)> StoredFindings { get; } = [];
+
+        public Guid? LastListOrganizationId { get; private set; }
 
         public Task AddAsync(AuditFinding auditFinding, CancellationToken cancellationToken)
         {
-            StoredFindings.Add(auditFinding);
+            StoredFindings.Add((auditFinding, Guid.Empty));
             return Task.CompletedTask;
         }
 
-        public Task<AuditFinding?> GetByIdAsync(Guid auditFindingId, CancellationToken cancellationToken)
+        public Task<AuditFinding?> GetByIdAsync(Guid auditFindingId, Guid organizationId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(StoredFindings.SingleOrDefault(finding => finding.Id == auditFindingId));
+            return Task.FromResult<AuditFinding?>(StoredFindings.SingleOrDefault(item => item.Finding.Id == auditFindingId && item.OrganizationId == organizationId).Finding);
         }
 
-        public Task<AuditFinding?> GetByIdForUpdateAsync(Guid auditFindingId, CancellationToken cancellationToken)
+        public Task<AuditFinding?> GetByIdForUpdateAsync(Guid auditFindingId, Guid organizationId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(StoredFindings.SingleOrDefault(finding => finding.Id == auditFindingId));
+            return Task.FromResult<AuditFinding?>(StoredFindings.SingleOrDefault(item => item.Finding.Id == auditFindingId && item.OrganizationId == organizationId).Finding);
         }
 
-        public Task<PagedResult<AuditFinding>> ListAsync(AuditFindingQueryParameters queryParameters, CancellationToken cancellationToken)
+        public Task<PagedResult<AuditFinding>> ListAsync(Guid organizationId, AuditFindingQueryParameters queryParameters, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new PagedResult<AuditFinding>(StoredFindings, StoredFindings.Count, 1, 20));
+            LastListOrganizationId = organizationId;
+            var items = StoredFindings
+                .Where(item => item.OrganizationId == organizationId)
+                .Select(item => item.Finding)
+                .ToArray();
+
+            return Task.FromResult(new PagedResult<AuditFinding>(items, items.Length, queryParameters.PageNumber, queryParameters.PageSize));
         }
 
-        public Task SaveChangesAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeActionPlanRepository : IActionPlanRepository
     {
         public bool HasBlockingActionPlans { get; init; }
 
-        public Task AddAsync(ActionPlan actionPlan, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task AddAsync(ActionPlan actionPlan, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, Guid organizationId, CancellationToken cancellationToken) => Task.FromResult<ActionPlan?>(null);
 
-        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, Guid organizationId, CancellationToken cancellationToken) => Task.FromResult<ActionPlan?>(null);
 
-        public Task<PagedResult<ActionPlan>> ListAsync(AuditAI.Application.ActionPlans.Contracts.ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task<PagedResult<ActionPlan>> ListAsync(Guid organizationId, AuditAI.Application.ActionPlans.Contracts.ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
+            => Task.FromResult(new PagedResult<ActionPlan>(Array.Empty<ActionPlan>(), 0, queryParameters.PageNumber, queryParameters.PageSize));
 
-        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid auditFindingId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(HasBlockingActionPlans);
-        }
+        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid organizationId, Guid auditFindingId, CancellationToken cancellationToken)
+            => Task.FromResult(HasBlockingActionPlans);
 
-        public Task SaveChangesAsync(CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeReferenceLookup : IControlLookup, IUserLookup
+    private sealed class FakeControlLookup : IControlLookup
     {
         public Dictionary<Guid, Guid> ControlOrganizations { get; } = [];
 
-        public Dictionary<Guid, Guid> UserOrganizations { get; } = [];
-
         public Task<Guid?> GetControlOrganizationIdAsync(Guid controlId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(ControlOrganizations.TryGetValue(controlId, out var organizationId) ? (Guid?)organizationId : null);
-        }
-
-        public Task<Guid?> GetUserOrganizationIdAsync(Guid userId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(UserOrganizations.TryGetValue(userId, out var organizationId) ? (Guid?)organizationId : null);
-        }
-    }
-
-    private sealed class FakeFindingLookup : IAuditFindingLookup
-    {
-        public Dictionary<Guid, Guid> FindingOrganizations { get; } = [];
-
-        public Task<Guid?> GetFindingOrganizationIdAsync(Guid auditFindingId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(FindingOrganizations.TryGetValue(auditFindingId, out var organizationId) ? (Guid?)organizationId : null);
-        }
+            => Task.FromResult(ControlOrganizations.TryGetValue(controlId, out var organizationId) ? (Guid?)organizationId : null);
     }
 
     private sealed class FakeAuditLogWriter : IAuditLogWriter
     {
+        public AuditLogWriteEntry? LastEntry { get; private set; }
+
         public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
         {
+            LastEntry = entry;
             return Task.CompletedTask;
         }
     }

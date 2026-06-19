@@ -20,26 +20,46 @@ internal sealed class AuditFindingRepository : IAuditFindingRepository
         await _dbContext.AuditFindings.AddAsync(auditFinding, cancellationToken);
     }
 
-    public async Task<AuditFindingEntity?> GetByIdAsync(Guid auditFindingId, CancellationToken cancellationToken)
+    public async Task<AuditFindingEntity?> GetByIdAsync(
+        Guid auditFindingId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
     {
-        return await _dbContext.AuditFindings
-            .AsNoTracking()
-            .SingleOrDefaultAsync(auditFinding => auditFinding.Id == auditFindingId, cancellationToken);
+        return await (
+            from auditFinding in _dbContext.AuditFindings.AsNoTracking()
+            join control in _dbContext.Controls.AsNoTracking()
+                on auditFinding.ControlId equals control.Id
+            where auditFinding.Id == auditFindingId &&
+                  control.OrganizationId == organizationId
+            select auditFinding)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<AuditFindingEntity?> GetByIdForUpdateAsync(Guid auditFindingId, CancellationToken cancellationToken)
+    public async Task<AuditFindingEntity?> GetByIdForUpdateAsync(
+        Guid auditFindingId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
     {
-        return await _dbContext.AuditFindings
-            .SingleOrDefaultAsync(auditFinding => auditFinding.Id == auditFindingId, cancellationToken);
+        return await (
+            from auditFinding in _dbContext.AuditFindings
+            join control in _dbContext.Controls
+                on auditFinding.ControlId equals control.Id
+            where auditFinding.Id == auditFindingId &&
+                  control.OrganizationId == organizationId
+            select auditFinding)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<PagedResult<AuditFindingEntity>> ListAsync(
+        Guid organizationId,
         AuditFindingQueryParameters queryParameters,
         CancellationToken cancellationToken)
     {
-        var query = _dbContext.AuditFindings
-            .AsNoTracking()
-            .AsQueryable();
+        var query = from auditFinding in _dbContext.AuditFindings.AsNoTracking()
+                    join control in _dbContext.Controls.AsNoTracking()
+                        on auditFinding.ControlId equals control.Id
+                    where control.OrganizationId == organizationId
+                    select auditFinding;
 
         if (queryParameters.ControlId.HasValue)
         {

@@ -21,26 +21,52 @@ internal sealed class ActionPlanRepository : IActionPlanRepository
         await _dbContext.ActionPlans.AddAsync(actionPlan, cancellationToken);
     }
 
-    public async Task<AuditActionPlan?> GetByIdAsync(Guid actionPlanId, CancellationToken cancellationToken)
+    public async Task<AuditActionPlan?> GetByIdAsync(
+        Guid actionPlanId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
     {
-        return await _dbContext.ActionPlans
-            .AsNoTracking()
-            .SingleOrDefaultAsync(actionPlan => actionPlan.Id == actionPlanId, cancellationToken);
+        return await (
+            from actionPlan in _dbContext.ActionPlans.AsNoTracking()
+            join auditFinding in _dbContext.AuditFindings.AsNoTracking()
+                on actionPlan.AuditFindingId equals auditFinding.Id
+            join control in _dbContext.Controls.AsNoTracking()
+                on auditFinding.ControlId equals control.Id
+            where actionPlan.Id == actionPlanId &&
+                  control.OrganizationId == organizationId
+            select actionPlan)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<AuditActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, CancellationToken cancellationToken)
+    public async Task<AuditActionPlan?> GetByIdForUpdateAsync(
+        Guid actionPlanId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
     {
-        return await _dbContext.ActionPlans
-            .SingleOrDefaultAsync(actionPlan => actionPlan.Id == actionPlanId, cancellationToken);
+        return await (
+            from actionPlan in _dbContext.ActionPlans
+            join auditFinding in _dbContext.AuditFindings
+                on actionPlan.AuditFindingId equals auditFinding.Id
+            join control in _dbContext.Controls
+                on auditFinding.ControlId equals control.Id
+            where actionPlan.Id == actionPlanId &&
+                  control.OrganizationId == organizationId
+            select actionPlan)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<PagedResult<AuditActionPlan>> ListAsync(
+        Guid organizationId,
         ActionPlanQueryParameters queryParameters,
         CancellationToken cancellationToken)
     {
-        var query = _dbContext.ActionPlans
-            .AsNoTracking()
-            .AsQueryable();
+        var query = from actionPlan in _dbContext.ActionPlans.AsNoTracking()
+                    join auditFinding in _dbContext.AuditFindings.AsNoTracking()
+                        on actionPlan.AuditFindingId equals auditFinding.Id
+                    join control in _dbContext.Controls.AsNoTracking()
+                        on auditFinding.ControlId equals control.Id
+                    where control.OrganizationId == organizationId
+                    select actionPlan;
 
         if (queryParameters.AuditFindingId.HasValue)
         {
@@ -73,16 +99,24 @@ internal sealed class ActionPlanRepository : IActionPlanRepository
         return new PagedResult<AuditActionPlan>(items, totalCount, queryParameters.PageNumber, queryParameters.PageSize);
     }
 
-    public async Task<bool> HasBlockingActionPlansForFindingAsync(Guid auditFindingId, CancellationToken cancellationToken)
+    public async Task<bool> HasBlockingActionPlansForFindingAsync(
+        Guid organizationId,
+        Guid auditFindingId,
+        CancellationToken cancellationToken)
     {
-        return await _dbContext.ActionPlans
-            .AsNoTracking()
-            .AnyAsync(
-                actionPlan => actionPlan.AuditFindingId == auditFindingId &&
-                              (actionPlan.Status == ActionPlanStatus.Open ||
-                               actionPlan.Status == ActionPlanStatus.InProgress ||
-                               actionPlan.Status == ActionPlanStatus.Overdue),
-                cancellationToken);
+        return await (
+            from actionPlan in _dbContext.ActionPlans.AsNoTracking()
+            join auditFinding in _dbContext.AuditFindings.AsNoTracking()
+                on actionPlan.AuditFindingId equals auditFinding.Id
+            join control in _dbContext.Controls.AsNoTracking()
+                on auditFinding.ControlId equals control.Id
+            where actionPlan.AuditFindingId == auditFindingId &&
+                  control.OrganizationId == organizationId &&
+                  (actionPlan.Status == ActionPlanStatus.Open ||
+                   actionPlan.Status == ActionPlanStatus.InProgress ||
+                   actionPlan.Status == ActionPlanStatus.Overdue)
+            select actionPlan)
+            .AnyAsync(cancellationToken);
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)

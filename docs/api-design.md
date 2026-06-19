@@ -133,7 +133,11 @@ Current authentication behavior:
 *   Controls organization scope comes from JWT `org_id`, even if request or query payloads still contain organization fields for compatibility.
 *   Evidence organization scope comes from JWT `org_id`.
 *   Audit logs for Controls and Evidence now use the authenticated actor.
-*   AuditFindings, ActionPlans, and AuditLogs endpoints are still anonymous in the current staged rollout.
+*   AuditFindings endpoints currently require a bearer token.
+*   ActionPlans endpoints currently require a bearer token.
+*   AuditFindings and ActionPlans organization scope comes from JWT `org_id`.
+*   Audit logs for AuditFindings and ActionPlans now use the authenticated actor.
+*   AuditLogs read endpoints remain anonymous in the current staged rollout.
 *   No refresh token, cookie auth, public registration, or password reset flow exists yet.
 
 ## 9. API Behavior for Future AI Endpoints

@@ -45,11 +45,12 @@ public static class DependencyInjection
         services.AddScoped<IActionPlanRepository, ActionPlanRepository>();
         services.AddScoped<IAuditFindingRepository, AuditFindingRepository>();
         services.AddScoped<IAuditFindingLookup, ActionPlanReferenceLookup>();
+        services.AddScoped<AuditAI.Application.ActionPlans.Interfaces.IUserLookup, ActionPlanReferenceLookup>();
         services.AddScoped<IOrganizationLookup, ControlReferenceLookup>();
         services.AddScoped<IDepartmentLookup, ControlReferenceLookup>();
         services.AddScoped<IEvidenceRepository, EvidenceRepository>();
         services.AddScoped<IControlLookup, EvidenceReferenceLookup>();
-        services.AddScoped<IUserLookup, EvidenceReferenceLookup>();
+        services.AddScoped<AuditAI.Application.Evidence.Interfaces.IUserLookup, EvidenceReferenceLookup>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
         return services;

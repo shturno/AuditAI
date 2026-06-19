@@ -8,11 +8,18 @@ public interface IAuditFindingRepository
 {
     Task AddAsync(AuditFindingEntity auditFinding, CancellationToken cancellationToken);
 
-    Task<AuditFindingEntity?> GetByIdAsync(Guid auditFindingId, CancellationToken cancellationToken);
+    Task<AuditFindingEntity?> GetByIdAsync(
+        Guid auditFindingId,
+        Guid organizationId,
+        CancellationToken cancellationToken);
 
-    Task<AuditFindingEntity?> GetByIdForUpdateAsync(Guid auditFindingId, CancellationToken cancellationToken);
+    Task<AuditFindingEntity?> GetByIdForUpdateAsync(
+        Guid auditFindingId,
+        Guid organizationId,
+        CancellationToken cancellationToken);
 
     Task<PagedResult<AuditFindingEntity>> ListAsync(
+        Guid organizationId,
         AuditFindingQueryParameters queryParameters,
         CancellationToken cancellationToken);
 

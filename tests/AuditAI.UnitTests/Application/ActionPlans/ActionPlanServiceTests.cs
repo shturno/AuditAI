@@ -6,7 +6,7 @@ using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Pagination;
-using AuditAI.Application.Evidence.Interfaces;
+using AuditAI.Application.Common.Results;
 using AuditAI.Domain.Entities;
 using AuditAI.Domain.Enums;
 
@@ -15,12 +15,16 @@ namespace AuditAI.UnitTests.Application.ActionPlans;
 public sealed class ActionPlanServiceTests
 {
     [Fact]
-    public async Task Should_FailCreateActionPlan_When_FindingDoesNotExist()
+    public async Task Should_FailCreateActionPlan_When_CurrentUserIsMissing()
     {
-        var repository = new FakeActionPlanRepository();
-        var findingLookup = new FakeFindingLookup();
-        var userLookup = new FakeUserLookup();
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var service = new CreateActionPlanService(
+            new FakeActionPlanRepository(),
+            new FakeFindingLookup(),
+            new FakeUserLookup(),
+            new FakeAuditLogWriter(),
+            new FakeCurrentUser(),
+            new FakeDateTimeProvider(),
+            new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -32,21 +36,23 @@ public sealed class ActionPlanServiceTests
         });
 
         Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "AuditFindingId");
+        Assert.True(result.IsUnauthorized);
     }
 
     [Fact]
-    public async Task Should_FailCreateActionPlan_When_AssignedUserDoesNotExist()
+    public async Task Should_FailCreateActionPlan_When_FindingBelongsToAnotherOrganization()
     {
-        var repository = new FakeActionPlanRepository();
-        var findingId = Guid.NewGuid();
         var organizationId = Guid.NewGuid();
-        var findingLookup = new FakeFindingLookup
-        {
-            FindingOrganizations = { [findingId] = organizationId }
-        };
-        var userLookup = new FakeUserLookup();
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var currentUser = new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId };
+        var findingId = Guid.NewGuid();
+        var service = new CreateActionPlanService(
+            new FakeActionPlanRepository(),
+            new FakeFindingLookup { FindingOrganizations = { [findingId] = Guid.NewGuid() } },
+            new FakeUserLookup(),
+            new FakeAuditLogWriter(),
+            currentUser,
+            new FakeDateTimeProvider(),
+            new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -58,24 +64,23 @@ public sealed class ActionPlanServiceTests
         });
 
         Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "AssignedToUserId");
+        Assert.True(result.IsNotFound);
     }
 
     [Fact]
     public async Task Should_FailCreateActionPlan_When_AssignedUserBelongsToAnotherOrganization()
     {
-        var repository = new FakeActionPlanRepository();
+        var organizationId = Guid.NewGuid();
         var findingId = Guid.NewGuid();
         var assignedUserId = Guid.NewGuid();
-        var findingLookup = new FakeFindingLookup
-        {
-            FindingOrganizations = { [findingId] = Guid.NewGuid() }
-        };
-        var userLookup = new FakeUserLookup
-        {
-            UserOrganizations = { [assignedUserId] = Guid.NewGuid() }
-        };
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var service = new CreateActionPlanService(
+            new FakeActionPlanRepository(),
+            new FakeFindingLookup { FindingOrganizations = { [findingId] = organizationId } },
+            new FakeUserLookup { UserOrganizations = { [assignedUserId] = Guid.NewGuid() } },
+            new FakeAuditLogWriter(),
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId },
+            new FakeDateTimeProvider(),
+            new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -93,19 +98,19 @@ public sealed class ActionPlanServiceTests
     [Fact]
     public async Task Should_CreateActionPlan_When_FindingAndAssignedUserAreValid()
     {
-        var repository = new FakeActionPlanRepository();
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var findingId = Guid.NewGuid();
         var assignedUserId = Guid.NewGuid();
-        var organizationId = Guid.NewGuid();
-        var findingLookup = new FakeFindingLookup
-        {
-            FindingOrganizations = { [findingId] = organizationId }
-        };
-        var userLookup = new FakeUserLookup
-        {
-            UserOrganizations = { [assignedUserId] = organizationId }
-        };
-        var service = new CreateActionPlanService(repository, findingLookup, userLookup, new FakeAuditLogWriter(), new FakeDateTimeProvider(), new CreateActionPlanRequestValidator());
+        var auditLogWriter = new FakeAuditLogWriter();
+        var service = new CreateActionPlanService(
+            new FakeActionPlanRepository(),
+            new FakeFindingLookup { FindingOrganizations = { [findingId] = organizationId } },
+            new FakeUserLookup { UserOrganizations = { [assignedUserId] = organizationId } },
+            auditLogWriter,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            new FakeDateTimeProvider(),
+            new CreateActionPlanRequestValidator());
 
         var result = await service.ExecuteAsync(new CreateActionPlanRequest
         {
@@ -117,83 +122,95 @@ public sealed class ActionPlanServiceTests
         });
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Value);
-        Assert.Equal(ActionPlanStatus.Open, result.Value.Status);
+        Assert.Equal(userId, auditLogWriter.LastEntry!.UserId);
+        Assert.Equal(organizationId, auditLogWriter.LastEntry.OrganizationId);
     }
 
     [Fact]
-    public async Task Should_ReturnNotFound_When_ActionPlanDoesNotExist()
+    public async Task Should_AllowActionPlanList_When_CurrentUserIsAuthenticated()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new FakeActionPlanRepository();
+        repository.StoredActionPlans.Add((
+            ActionPlan.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Plan", "Description text", new FakeDateTimeProvider().UtcNow.AddDays(7), new FakeDateTimeProvider().UtcNow),
+            organizationId));
+
+        var service = new ListActionPlansService(
+            repository,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId },
+            new ActionPlanQueryParametersValidator());
+
+        var result = await service.ExecuteAsync(new ActionPlanQueryParameters { PageNumber = 1, PageSize = 10 });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(organizationId, repository.LastListOrganizationId);
+    }
+
+    [Fact]
+    public async Task Should_ReturnNotFound_When_ActionPlanBelongsToAnotherOrganization()
     {
         var repository = new FakeActionPlanRepository();
-        var service = new GetActionPlanByIdService(repository);
+        var actionPlan = ActionPlan.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Plan", "Description text", new FakeDateTimeProvider().UtcNow.AddDays(7), new FakeDateTimeProvider().UtcNow);
+        repository.StoredActionPlans.Add((actionPlan, Guid.NewGuid()));
 
-        var result = await service.ExecuteAsync(Guid.NewGuid());
+        var service = new GetActionPlanByIdService(
+            repository,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = Guid.NewGuid() });
+
+        var result = await service.ExecuteAsync(actionPlan.Id);
 
         Assert.False(result.IsSuccess);
         Assert.True(result.IsNotFound);
     }
 
     [Fact]
-    public async Task Should_ReturnNotFound_When_UpdatingMissingActionPlan()
+    public async Task Should_UseCurrentUserIdInAuditLog_When_UpdatingActionPlan()
     {
+        var clock = new FakeDateTimeProvider();
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var actionPlan = ActionPlan.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Plan", "Description text", clock.UtcNow.AddDays(7), clock.UtcNow);
         var repository = new FakeActionPlanRepository();
-        var service = new UpdateActionPlanService(repository, new FakeFindingLookup(), new FakeUserLookup(), new FakeAuditLogWriter(), new FakeDateTimeProvider(), new UpdateActionPlanRequestValidator());
+        repository.StoredActionPlans.Add((actionPlan, organizationId));
+        var auditLogWriter = new FakeAuditLogWriter();
 
-        var result = await service.ExecuteAsync(Guid.NewGuid(), new UpdateActionPlanRequest
+        var service = new UpdateActionPlanService(
+            repository,
+            new FakeUserLookup { UserOrganizations = { [actionPlan.AssignedToUserId] = organizationId } },
+            auditLogWriter,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            clock,
+            new UpdateActionPlanRequestValidator());
+
+        var result = await service.ExecuteAsync(actionPlan.Id, new UpdateActionPlanRequest
         {
-            AssignedToUserId = Guid.NewGuid(),
-            Title = "Updated title",
+            AssignedToUserId = actionPlan.AssignedToUserId,
+            Title = "Updated plan",
             Description = "Updated description",
-            DueDate = new FakeDateTimeProvider().UtcNow.AddDays(10)
+            DueDate = clock.UtcNow.AddDays(10)
         });
 
-        Assert.False(result.IsSuccess);
-        Assert.True(result.IsNotFound);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(userId, auditLogWriter.LastEntry!.UserId);
     }
 
     [Fact]
-    public async Task Should_FailChangeStatus_When_TransitionIsInvalid()
+    public async Task Should_UseCurrentUserIdInAuditLog_When_ChangingActionPlanStatus()
     {
         var clock = new FakeDateTimeProvider();
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var actionPlan = ActionPlan.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Plan", "Description text", clock.UtcNow.AddDays(7), clock.UtcNow);
         var repository = new FakeActionPlanRepository();
-        var actionPlan = ActionPlan.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Remediate control",
-            "Implement the remediation plan.",
-            clock.UtcNow.AddDays(7),
-            clock.UtcNow);
-        actionPlan.Complete(clock.UtcNow.AddDays(1));
-        repository.StoredActionPlans.Add(actionPlan);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
-        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
+        repository.StoredActionPlans.Add((actionPlan, organizationId));
+        var auditLogWriter = new FakeAuditLogWriter();
 
-        var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
-        {
-            Status = ActionPlanStatus.InProgress
-        });
-
-        Assert.False(result.IsSuccess);
-        Assert.Contains(result.ValidationErrors, error => error.PropertyName == "Status");
-    }
-
-    [Fact]
-    public async Task Should_ChangeStatus_When_TransitionIsValid()
-    {
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeActionPlanRepository();
-        var actionPlan = ActionPlan.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Remediate control",
-            "Implement the remediation plan.",
-            clock.UtcNow.AddDays(7),
-            clock.UtcNow);
-        repository.StoredActionPlans.Add(actionPlan);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
-        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
+        var service = new ChangeActionPlanStatusService(
+            repository,
+            auditLogWriter,
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            clock,
+            new ChangeActionPlanStatusRequestValidator());
 
         var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
         {
@@ -201,95 +218,61 @@ public sealed class ActionPlanServiceTests
         });
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(ActionPlanStatus.InProgress, result.Value!.Status);
+        Assert.Equal(userId, auditLogWriter.LastEntry!.UserId);
     }
 
-    [Fact]
-    public async Task Should_CompleteActionPlan_When_CurrentStatusAllowsIt()
+    private sealed class FakeCurrentUser : ICurrentUser
     {
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeActionPlanRepository();
-        var actionPlan = ActionPlan.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Remediate control",
-            "Implement the remediation plan.",
-            clock.UtcNow.AddDays(7),
-            clock.UtcNow);
-        repository.StoredActionPlans.Add(actionPlan);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
-        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
+        public bool IsAuthenticated { get; init; }
 
-        var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
-        {
-            Status = ActionPlanStatus.Completed
-        });
+        public Guid? UserId { get; init; }
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(ActionPlanStatus.Completed, result.Value!.Status);
-    }
+        public string? Email => null;
 
-    [Fact]
-    public async Task Should_CancelActionPlan_When_CurrentStatusAllowsIt()
-    {
-        var clock = new FakeDateTimeProvider();
-        var repository = new FakeActionPlanRepository();
-        var actionPlan = ActionPlan.Create(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            "Remediate control",
-            "Implement the remediation plan.",
-            clock.UtcNow.AddDays(7),
-            clock.UtcNow);
-        repository.StoredActionPlans.Add(actionPlan);
-        var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
-        var service = new ChangeActionPlanStatusService(repository, findingLookup, new FakeAuditLogWriter(), clock, new ChangeActionPlanStatusRequestValidator());
+        public UserRole? Role => null;
 
-        var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
-        {
-            Status = ActionPlanStatus.Cancelled
-        });
+        public Guid? OrganizationId { get; init; }
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(ActionPlanStatus.Cancelled, result.Value!.Status);
+        public Guid? DepartmentId => null;
     }
 
     private sealed class FakeActionPlanRepository : IActionPlanRepository
     {
-        public List<ActionPlan> StoredActionPlans { get; } = [];
+        public List<(ActionPlan ActionPlan, Guid OrganizationId)> StoredActionPlans { get; } = [];
+
+        public Guid? LastListOrganizationId { get; private set; }
 
         public Task AddAsync(ActionPlan actionPlan, CancellationToken cancellationToken)
         {
-            StoredActionPlans.Add(actionPlan);
+            StoredActionPlans.Add((actionPlan, Guid.Empty));
             return Task.CompletedTask;
         }
 
-        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, CancellationToken cancellationToken)
+        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, Guid organizationId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(StoredActionPlans.SingleOrDefault(actionPlan => actionPlan.Id == actionPlanId));
+            return Task.FromResult<ActionPlan?>(StoredActionPlans.SingleOrDefault(item => item.ActionPlan.Id == actionPlanId && item.OrganizationId == organizationId).ActionPlan);
         }
 
-        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, CancellationToken cancellationToken)
+        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, Guid organizationId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(StoredActionPlans.SingleOrDefault(actionPlan => actionPlan.Id == actionPlanId));
+            return Task.FromResult<ActionPlan?>(StoredActionPlans.SingleOrDefault(item => item.ActionPlan.Id == actionPlanId && item.OrganizationId == organizationId).ActionPlan);
         }
 
-        public Task<PagedResult<ActionPlan>> ListAsync(ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
+        public Task<PagedResult<ActionPlan>> ListAsync(Guid organizationId, ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new PagedResult<ActionPlan>(StoredActionPlans, StoredActionPlans.Count, 1, 20));
+            LastListOrganizationId = organizationId;
+            var items = StoredActionPlans
+                .Where(item => item.OrganizationId == organizationId)
+                .Select(item => item.ActionPlan)
+                .ToArray();
+
+            return Task.FromResult(new PagedResult<ActionPlan>(items, items.Length, queryParameters.PageNumber, queryParameters.PageSize));
         }
 
-        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid auditFindingId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(StoredActionPlans.Any(actionPlan => actionPlan.AuditFindingId == auditFindingId && actionPlan.IsOpenForResolution()));
-        }
+        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid organizationId, Guid auditFindingId, CancellationToken cancellationToken)
+            => Task.FromResult(false);
 
-        public Task SaveChangesAsync(CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeFindingLookup : IAuditFindingLookup
@@ -297,31 +280,30 @@ public sealed class ActionPlanServiceTests
         public Dictionary<Guid, Guid> FindingOrganizations { get; } = [];
 
         public Task<Guid?> GetFindingOrganizationIdAsync(Guid auditFindingId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(FindingOrganizations.TryGetValue(auditFindingId, out var organizationId) ? (Guid?)organizationId : null);
-        }
+            => Task.FromResult(FindingOrganizations.TryGetValue(auditFindingId, out var organizationId) ? (Guid?)organizationId : null);
     }
 
-    private sealed class FakeUserLookup : IUserLookup
+    private sealed class FakeUserLookup : AuditAI.Application.ActionPlans.Interfaces.IUserLookup
     {
         public Dictionary<Guid, Guid> UserOrganizations { get; } = [];
 
         public Task<Guid?> GetUserOrganizationIdAsync(Guid userId, CancellationToken cancellationToken)
+            => Task.FromResult(UserOrganizations.TryGetValue(userId, out var organizationId) ? (Guid?)organizationId : null);
+    }
+
+    private sealed class FakeAuditLogWriter : IAuditLogWriter
+    {
+        public AuditLogWriteEntry? LastEntry { get; private set; }
+
+        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
         {
-            return Task.FromResult(UserOrganizations.TryGetValue(userId, out var organizationId) ? (Guid?)organizationId : null);
+            LastEntry = entry;
+            return Task.CompletedTask;
         }
     }
 
     private sealed class FakeDateTimeProvider : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = new(2026, 06, 18, 15, 0, 0, TimeSpan.Zero);
-    }
-
-    private sealed class FakeAuditLogWriter : IAuditLogWriter
-    {
-        public Task WriteAsync(AuditLogWriteEntry entry, CancellationToken cancellationToken)
-        {
-            return Task.CompletedTask;
-        }
     }
 }

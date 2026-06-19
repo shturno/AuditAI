@@ -60,8 +60,9 @@ public sealed class AuditLogsApiTests
     {
         await _fixture.ResetDatabaseAsync();
         var finding = await CreateFindingAsync("Finding audit log status", AuditFindingSeverity.High);
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var response = await _fixture.Client.PatchAsJsonAsync(
+        var response = await client.PatchAsJsonAsync(
             $"/api/audit-findings/{finding.Id}/status",
             new ChangeAuditFindingStatusRequest
             {
@@ -81,8 +82,9 @@ public sealed class AuditLogsApiTests
         await _fixture.ResetDatabaseAsync();
         var finding = await CreateFindingAsync("Finding for action plan audit log", AuditFindingSeverity.High);
         var actionPlan = await CreateActionPlanAsync(finding.Id, "Plan audit log");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var response = await _fixture.Client.PatchAsJsonAsync(
+        var response = await client.PatchAsJsonAsync(
             $"/api/action-plans/{actionPlan.Id}/status",
             new ChangeActionPlanStatusRequest
             {
@@ -213,10 +215,11 @@ public sealed class AuditLogsApiTests
 
     private async Task<AuditFindingResponse> CreateFindingAsync(string title, AuditFindingSeverity severity)
     {
-        var response = await _fixture.Client.PostAsJsonAsync("/api/audit-findings", new CreateAuditFindingRequest
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/audit-findings", new CreateAuditFindingRequest
         {
             ControlId = TestData.ControlId,
-            CreatedByUserId = TestData.UserId,
             Title = title,
             Description = $"Detailed description for {title}.",
             Severity = severity
@@ -228,7 +231,9 @@ public sealed class AuditLogsApiTests
 
     private async Task<ActionPlanResponse> CreateActionPlanAsync(Guid auditFindingId, string title)
     {
-        var response = await _fixture.Client.PostAsJsonAsync("/api/action-plans", new CreateActionPlanRequest
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/action-plans", new CreateActionPlanRequest
         {
             AuditFindingId = auditFindingId,
             AssignedToUserId = TestData.UserId,

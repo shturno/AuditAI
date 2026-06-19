@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditAI.Infrastructure.Persistence.Lookups;
 
-internal sealed class ActionPlanReferenceLookup : IAuditFindingLookup
+internal sealed class ActionPlanReferenceLookup : IAuditFindingLookup, IUserLookup
 {
     private readonly AuditAIDbContext _dbContext;
 
@@ -22,6 +22,15 @@ internal sealed class ActionPlanReferenceLookup : IAuditFindingLookup
                 auditFinding => auditFinding.ControlId,
                 control => control.Id,
                 (_, control) => (Guid?)control.OrganizationId)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Guid?> GetUserOrganizationIdAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => (Guid?)user.OrganizationId)
             .SingleOrDefaultAsync(cancellationToken);
     }
 }

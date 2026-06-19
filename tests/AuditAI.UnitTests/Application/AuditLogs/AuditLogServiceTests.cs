@@ -109,7 +109,13 @@ public sealed class AuditLogServiceTests
         findingRepository.StoredFindings.Add(finding);
         var writer = new FakeAuditLogWriter();
         var findingLookup = new FakeFindingLookup { FindingOrganizations = { [finding.Id] = Guid.NewGuid() } };
-        var service = new ChangeAuditFindingStatusService(findingRepository, new FakeActionPlanRepository(), findingLookup, writer, clock, new ChangeAuditFindingStatusRequestValidator());
+        var service = new ChangeAuditFindingStatusService(
+            findingRepository,
+            new FakeActionPlanRepository(),
+            writer,
+            new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid()),
+            clock,
+            new ChangeAuditFindingStatusRequestValidator());
 
         var result = await service.ExecuteAsync(finding.Id, new ChangeAuditFindingStatusRequest
         {
@@ -129,7 +135,12 @@ public sealed class AuditLogServiceTests
         repository.StoredActionPlans.Add(actionPlan);
         var writer = new FakeAuditLogWriter();
         var findingLookup = new FakeFindingLookup { FindingOrganizations = { [actionPlan.AuditFindingId] = Guid.NewGuid() } };
-        var service = new ChangeActionPlanStatusService(repository, findingLookup, writer, clock, new ChangeActionPlanStatusRequestValidator());
+        var service = new ChangeActionPlanStatusService(
+            repository,
+            writer,
+            new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid()),
+            clock,
+            new ChangeActionPlanStatusRequestValidator());
 
         var result = await service.ExecuteAsync(actionPlan.Id, new ChangeActionPlanStatusRequest
         {
@@ -276,11 +287,11 @@ public sealed class AuditLogServiceTests
 
         public Task AddAsync(AuditFinding auditFinding, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<AuditFinding?> GetByIdAsync(Guid auditFindingId, CancellationToken cancellationToken) => Task.FromResult(StoredFindings.SingleOrDefault(x => x.Id == auditFindingId));
+        public Task<AuditFinding?> GetByIdAsync(Guid auditFindingId, Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(StoredFindings.SingleOrDefault(x => x.Id == auditFindingId));
 
-        public Task<AuditFinding?> GetByIdForUpdateAsync(Guid auditFindingId, CancellationToken cancellationToken) => Task.FromResult(StoredFindings.SingleOrDefault(x => x.Id == auditFindingId));
+        public Task<AuditFinding?> GetByIdForUpdateAsync(Guid auditFindingId, Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(StoredFindings.SingleOrDefault(x => x.Id == auditFindingId));
 
-        public Task<PagedResult<AuditFinding>> ListAsync(AuditAI.Application.AuditFindings.Contracts.AuditFindingQueryParameters queryParameters, CancellationToken cancellationToken)
+        public Task<PagedResult<AuditFinding>> ListAsync(Guid organizationId, AuditAI.Application.AuditFindings.Contracts.AuditFindingQueryParameters queryParameters, CancellationToken cancellationToken)
         {
             return Task.FromResult(new PagedResult<AuditFinding>(StoredFindings, StoredFindings.Count, 1, 20));
         }
@@ -304,16 +315,16 @@ public sealed class AuditLogServiceTests
 
         public Task AddAsync(ActionPlan actionPlan, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, CancellationToken cancellationToken) => Task.FromResult(StoredActionPlans.SingleOrDefault(x => x.Id == actionPlanId));
+        public Task<ActionPlan?> GetByIdAsync(Guid actionPlanId, Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(StoredActionPlans.SingleOrDefault(x => x.Id == actionPlanId));
 
-        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, CancellationToken cancellationToken) => Task.FromResult(StoredActionPlans.SingleOrDefault(x => x.Id == actionPlanId));
+        public Task<ActionPlan?> GetByIdForUpdateAsync(Guid actionPlanId, Guid organizationId, CancellationToken cancellationToken) => Task.FromResult(StoredActionPlans.SingleOrDefault(x => x.Id == actionPlanId));
 
-        public Task<PagedResult<ActionPlan>> ListAsync(AuditAI.Application.ActionPlans.Contracts.ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
+        public Task<PagedResult<ActionPlan>> ListAsync(Guid organizationId, AuditAI.Application.ActionPlans.Contracts.ActionPlanQueryParameters queryParameters, CancellationToken cancellationToken)
         {
             return Task.FromResult(new PagedResult<ActionPlan>(StoredActionPlans, StoredActionPlans.Count, 1, 20));
         }
 
-        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid auditFindingId, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<bool> HasBlockingActionPlansForFindingAsync(Guid organizationId, Guid auditFindingId, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

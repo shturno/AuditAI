@@ -1,10 +1,12 @@
 using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Services;
 using AuditAI.Application.Common.Pagination;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuditAI.Api.Controllers;
 
+[Authorize]
 [Route("api/action-plans")]
 [Tags("Action Plans")]
 public sealed class ActionPlansController : ApiControllerBase

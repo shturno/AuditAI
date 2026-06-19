@@ -1,9 +1,9 @@
-using AuditAI.Application.AuditLogs.Contracts;
-using AuditAI.Application.AuditLogs.Interfaces;
-using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.ActionPlans.Mappers;
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -16,21 +16,21 @@ namespace AuditAI.Application.ActionPlans.Services;
 public sealed class ChangeActionPlanStatusService
 {
     private readonly IActionPlanRepository _actionPlanRepository;
-    private readonly IAuditFindingLookup _auditFindingLookup;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly ICurrentUser _currentUser;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<ChangeActionPlanStatusRequest> _validator;
 
     public ChangeActionPlanStatusService(
         IActionPlanRepository actionPlanRepository,
-        IAuditFindingLookup auditFindingLookup,
         IAuditLogWriter auditLogWriter,
+        ICurrentUser currentUser,
         IDateTimeProvider dateTimeProvider,
         IValidator<ChangeActionPlanStatusRequest> validator)
     {
         _actionPlanRepository = actionPlanRepository;
-        _auditFindingLookup = auditFindingLookup;
         _auditLogWriter = auditLogWriter;
+        _currentUser = currentUser;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -40,13 +40,18 @@ public sealed class ChangeActionPlanStatusService
         ChangeActionPlanStatusRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!ActionPlansCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<ActionPlanResponse>.Unauthorized(ActionPlansCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             return Result<ActionPlanResponse>.ValidationFailure(validationResult.ToValidationErrors());
         }
 
-        var actionPlan = await _actionPlanRepository.GetByIdForUpdateAsync(actionPlanId, cancellationToken);
+        var actionPlan = await _actionPlanRepository.GetByIdForUpdateAsync(actionPlanId, organizationId, cancellationToken);
         if (actionPlan is null)
         {
             return Result<ActionPlanResponse>.NotFound("Action plan was not found.");
@@ -83,12 +88,11 @@ public sealed class ChangeActionPlanStatusService
             ]);
         }
 
-        var organizationId = await _auditFindingLookup.GetFindingOrganizationIdAsync(actionPlan.AuditFindingId, cancellationToken);
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
-                organizationId!.Value,
-                null,
-                AuditAI.Domain.Enums.AuditLogAction.ActionPlanStatusChanged,
+                organizationId,
+                userId,
+                AuditLogAction.ActionPlanStatusChanged,
                 nameof(AuditAI.Domain.Entities.ActionPlan),
                 actionPlan.Id,
                 AuditLogMetadata.Build(

@@ -202,13 +202,13 @@ public sealed class EvidenceApiTests
     }
 
     [Fact]
-    public async Task Should_KeepNonEvidenceEndpointAnonymous_ForNow()
+    public async Task Should_ReturnUnauthorized_When_AuditFindingsAreCalledWithoutToken()
     {
         await _fixture.ResetDatabaseAsync();
 
         var response = await _fixture.Client.GetAsync("/api/audit-findings?pageNumber=1&pageSize=10");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

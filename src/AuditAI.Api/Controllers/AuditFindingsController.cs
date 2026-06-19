@@ -1,10 +1,12 @@
 using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Services;
 using AuditAI.Application.Common.Pagination;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuditAI.Api.Controllers;
 
+[Authorize]
 [Route("api/audit-findings")]
 [Tags("Audit Findings")]
 public sealed class AuditFindingsController : ApiControllerBase

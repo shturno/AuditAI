@@ -1,39 +1,38 @@
-using AuditAI.Application.AuditLogs.Contracts;
-using AuditAI.Application.AuditLogs.Interfaces;
-using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.ActionPlans.Mappers;
+using AuditAI.Application.AuditLogs.Contracts;
+using AuditAI.Application.AuditLogs.Interfaces;
+using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
-using AuditAI.Application.Evidence.Interfaces;
-using FluentValidation;
 using AuditAI.Domain.Exceptions;
+using FluentValidation;
 
 namespace AuditAI.Application.ActionPlans.Services;
 
 public sealed class UpdateActionPlanService
 {
     private readonly IActionPlanRepository _actionPlanRepository;
-    private readonly IAuditFindingLookup _auditFindingLookup;
     private readonly IUserLookup _userLookup;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly ICurrentUser _currentUser;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<UpdateActionPlanRequest> _validator;
 
     public UpdateActionPlanService(
         IActionPlanRepository actionPlanRepository,
-        IAuditFindingLookup auditFindingLookup,
         IUserLookup userLookup,
         IAuditLogWriter auditLogWriter,
+        ICurrentUser currentUser,
         IDateTimeProvider dateTimeProvider,
         IValidator<UpdateActionPlanRequest> validator)
     {
         _actionPlanRepository = actionPlanRepository;
-        _auditFindingLookup = auditFindingLookup;
         _userLookup = userLookup;
         _auditLogWriter = auditLogWriter;
+        _currentUser = currentUser;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
     }
@@ -43,28 +42,38 @@ public sealed class UpdateActionPlanService
         UpdateActionPlanRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!ActionPlansCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<ActionPlanResponse>.Unauthorized(ActionPlansCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             return Result<ActionPlanResponse>.ValidationFailure(validationResult.ToValidationErrors());
         }
 
-        var actionPlan = await _actionPlanRepository.GetByIdForUpdateAsync(actionPlanId, cancellationToken);
+        var actionPlan = await _actionPlanRepository.GetByIdForUpdateAsync(actionPlanId, organizationId, cancellationToken);
         if (actionPlan is null)
         {
             return Result<ActionPlanResponse>.NotFound("Action plan was not found.");
         }
 
-        var referenceErrors = await ActionPlanReferenceValidation.ValidateAsync(
-            actionPlan.AuditFindingId,
-            request.AssignedToUserId,
-            _auditFindingLookup,
-            _userLookup,
-            cancellationToken);
-
-        if (referenceErrors.Count > 0)
+        var assignedUserOrganizationId = await _userLookup.GetUserOrganizationIdAsync(request.AssignedToUserId, cancellationToken);
+        if (!assignedUserOrganizationId.HasValue)
         {
-            return Result<ActionPlanResponse>.ValidationFailure(referenceErrors);
+            return Result<ActionPlanResponse>.ValidationFailure(
+            [
+                new ValidationError("AssignedToUserId", "Assigned user does not exist.")
+            ]);
+        }
+
+        if (assignedUserOrganizationId.Value != organizationId)
+        {
+            return Result<ActionPlanResponse>.ValidationFailure(
+            [
+                new ValidationError("AssignedToUserId", "Assigned user must belong to the same organization as the action plan.")
+            ]);
         }
 
         try
@@ -84,11 +93,10 @@ public sealed class UpdateActionPlanService
             ]);
         }
 
-        var organizationId = await _auditFindingLookup.GetFindingOrganizationIdAsync(actionPlan.AuditFindingId, cancellationToken);
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
-                organizationId!.Value,
-                null,
+                organizationId,
+                userId,
                 AuditAI.Domain.Enums.AuditLogAction.ActionPlanUpdated,
                 nameof(AuditAI.Domain.Entities.ActionPlan),
                 actionPlan.Id,

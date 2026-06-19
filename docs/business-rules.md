@@ -99,9 +99,9 @@ This document outlines the core business rules, entities, and workflows for the 
 *   Control existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
 *   Control/User existence checks and organization consistency for Audit Finding creation are Application-layer orchestration rules, not Domain rules.
 *   Audit Finding/User existence checks and organization consistency for Action Plan create/update are Application-layer orchestration rules, not Domain rules.
-*   Authenticated tenant authorization is currently implemented for the Controls and Evidence slices. AuditFindings and ActionPlans are still on the staged rollout path.
+*   Authenticated tenant authorization is currently implemented for Controls, Evidence, AuditFindings, and ActionPlans. AuditLogs read endpoints remain on their current anonymous/read-only behavior.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
-*   Actor resolution for `AuditLog.UserId` is implemented for Controls and Evidence. Other slices are still using the earlier staged behavior until they are protected.
+*   Actor resolution for `AuditLog.UserId` is implemented for Controls, Evidence, AuditFindings, and ActionPlans.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.
 
 ## 6. Audit Logging Rules
