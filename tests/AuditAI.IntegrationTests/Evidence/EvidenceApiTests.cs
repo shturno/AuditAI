@@ -133,11 +133,12 @@ public sealed class EvidenceApiTests
     public async Task Should_AcceptEvidence_UsingAuthenticatedUserAsReviewer()
     {
         await _fixture.ResetDatabaseAsync();
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
-        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-e.pdf");
+        using var auditorClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var reviewerClient = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+        var createResponse = await CreateValidEvidenceAsync(auditorClient, TestData.ControlId, "evidence/report-e.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await client.PatchAsJsonAsync(
+        var response = await reviewerClient.PatchAsJsonAsync(
             $"/api/evidence/{created!.Id}/accept",
             new ReviewEvidenceRequest());
 
@@ -146,18 +147,34 @@ public sealed class EvidenceApiTests
         var accepted = await response.Content.ReadFromJsonAsync<EvidenceResponse>();
         Assert.NotNull(accepted);
         Assert.Equal(EvidenceStatus.Accepted, accepted.Status);
-        Assert.Equal(TestData.UserId, accepted.ReviewedByUserId);
+        Assert.Equal(TestData.ReviewerUserId, accepted.ReviewedByUserId);
+    }
+
+    [Fact]
+    public async Task Should_ReturnForbidden_When_AuditorAcceptsEvidence()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-e-auditor.pdf");
+        var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
+
+        var response = await client.PatchAsJsonAsync(
+            $"/api/evidence/{created!.Id}/accept",
+            new ReviewEvidenceRequest());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task Should_ReturnBadRequest_When_RejectionReasonIsMissing()
     {
         await _fixture.ResetDatabaseAsync();
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
-        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-f.pdf");
+        using var auditorClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var reviewerClient = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+        var createResponse = await CreateValidEvidenceAsync(auditorClient, TestData.ControlId, "evidence/report-f.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await client.PatchAsJsonAsync(
+        var response = await reviewerClient.PatchAsJsonAsync(
             $"/api/evidence/{created!.Id}/reject",
             new ReviewEvidenceRequest
             {
@@ -175,11 +192,12 @@ public sealed class EvidenceApiTests
     public async Task Should_CreateAuditLogWithAuthenticatedActor_When_RejectingEvidence()
     {
         await _fixture.ResetDatabaseAsync();
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
-        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-g.pdf");
+        using var auditorClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var reviewerClient = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+        var createResponse = await CreateValidEvidenceAsync(auditorClient, TestData.ControlId, "evidence/report-g.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await client.PatchAsJsonAsync(
+        var response = await reviewerClient.PatchAsJsonAsync(
             $"/api/evidence/{created!.Id}/reject",
             new ReviewEvidenceRequest
             {
@@ -197,7 +215,7 @@ public sealed class EvidenceApiTests
                 log.EntityId == created.Id &&
                 log.Action == AuditLogAction.EvidenceRejected);
 
-        Assert.Equal(TestData.UserId, auditLog.UserId);
+        Assert.Equal(TestData.ReviewerUserId, auditLog.UserId);
         Assert.Equal(TestData.OrganizationId, auditLog.OrganizationId);
     }
 

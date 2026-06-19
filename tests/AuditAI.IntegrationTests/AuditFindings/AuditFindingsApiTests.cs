@@ -64,6 +64,23 @@ public sealed class AuditFindingsApiTests
     }
 
     [Fact]
+    public async Task Should_ReturnForbidden_When_ReviewerCreatesFinding()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+
+        var response = await client.PostAsJsonAsync("/api/audit-findings", new CreateAuditFindingRequest
+        {
+            ControlId = TestData.ControlId,
+            Title = "Reviewer should not create findings",
+            Description = "This control has no approval evidence.",
+            Severity = AuditFindingSeverity.High
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Should_ReturnNotFound_When_CreatingFindingForOtherOrganizationControl()
     {
         await _fixture.ResetDatabaseAsync();

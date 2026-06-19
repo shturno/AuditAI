@@ -135,9 +135,22 @@ Current authentication behavior:
 *   Audit logs for Controls and Evidence now use the authenticated actor.
 *   AuditFindings endpoints currently require a bearer token.
 *   ActionPlans endpoints currently require a bearer token.
+*   AuditLogs read endpoints currently require a bearer token.
 *   AuditFindings and ActionPlans organization scope comes from JWT `org_id`.
 *   Audit logs for AuditFindings and ActionPlans now use the authenticated actor.
-*   AuditLogs read endpoints remain anonymous in the current staged rollout.
+*   AuditLogs read scope also comes from JWT `org_id`; request-supplied organization filters cannot escape the authenticated organization.
+*   `403 Forbidden` is returned when the user is authenticated but lacks the required role for a protected use case.
+*   Current RBAC matrix:
+    *   Controls list/get: `Admin`, `Auditor`, `Reviewer`
+    *   Controls create/update/deactivate: `Admin`, `Auditor`
+    *   Evidence list/get: `Admin`, `Auditor`, `Reviewer`
+    *   Evidence create: `Admin`, `Auditor`
+    *   Evidence accept/reject: `Admin`, `Reviewer`
+    *   AuditFindings list/get: `Admin`, `Auditor`, `Reviewer`
+    *   AuditFindings create/update/change-status: `Admin`, `Auditor`
+    *   ActionPlans list/get: `Admin`, `Auditor`, `Reviewer`
+    *   ActionPlans create/update/change-status: `Admin`, `Auditor`
+    *   AuditLogs list/get: `Admin`, `Auditor`
 *   No refresh token, cookie auth, public registration, or password reset flow exists yet.
 
 ## 9. API Behavior for Future AI Endpoints

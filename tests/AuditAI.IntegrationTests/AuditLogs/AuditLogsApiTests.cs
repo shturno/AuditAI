@@ -38,7 +38,7 @@ public sealed class AuditLogsApiTests
     {
         await _fixture.ResetDatabaseAsync();
         var evidence = await CreateEvidenceAsync("evidence/audit-log-reject.pdf");
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
 
         var rejectResponse = await client.PatchAsJsonAsync(
             $"/api/evidence/{evidence.Id}/reject",
@@ -105,7 +105,8 @@ public sealed class AuditLogsApiTests
         await CreateControlAsync("CTRL-AUD-002");
         await CreateControlAsync("CTRL-AUD-003");
 
-        var response = await _fixture.Client.GetAsync($"/api/audit-logs?pageNumber=1&pageSize=10&organizationId={TestData.OrganizationId}");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"/api/audit-logs?pageNumber=1&pageSize=10&organizationId={TestData.OrganizationId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var page = await response.Content.ReadFromJsonAsync<PagedResult<AuditLogListItemResponse>>();
@@ -120,7 +121,8 @@ public sealed class AuditLogsApiTests
         var control = await CreateControlAsync("CTRL-AUD-004");
         var log = await GetSingleAuditLogAsync($"action={AuditLogAction.ControlCreated}&entityName=Control&entityId={control.Id}");
 
-        var response = await _fixture.Client.GetAsync($"/api/audit-logs/{log.Id}");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"/api/audit-logs/{log.Id}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<AuditLogResponse>();
@@ -133,9 +135,43 @@ public sealed class AuditLogsApiTests
     {
         await _fixture.ResetDatabaseAsync();
 
-        var response = await _fixture.Client.GetAsync($"/api/audit-logs/{Guid.NewGuid()}");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"/api/audit-logs/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Should_ReturnUnauthorized_When_AuditLogsAreCalledWithoutToken()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var response = await _fixture.Client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Should_ReturnForbidden_When_ReviewerReadsAuditLogs()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+
+        var response = await client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Should_ReturnOk_When_AdminReadsAuditLogs()
+    {
+        await _fixture.ResetDatabaseAsync();
+        await CreateControlAsync("CTRL-AUD-ADMIN");
+        using var client = await _fixture.CreateAuthenticatedClientAsync(TestData.AdminUserEmail, TestData.AdminUserPassword);
+
+        var response = await client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -143,7 +179,7 @@ public sealed class AuditLogsApiTests
     {
         await _fixture.ResetDatabaseAsync();
         var evidence = await CreateEvidenceAsync("evidence/audit-log-safe.pdf");
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
 
         var rejectResponse = await client.PatchAsJsonAsync(
             $"/api/evidence/{evidence.Id}/reject",
@@ -248,7 +284,8 @@ public sealed class AuditLogsApiTests
 
     private async Task<PagedResult<AuditLogListItemResponse>> GetAuditLogsAsync(string query)
     {
-        var response = await _fixture.Client.GetAsync($"/api/audit-logs?pageNumber=1&pageSize=20&{query}");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"/api/audit-logs?pageNumber=1&pageSize=20&{query}");
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<PagedResult<AuditLogListItemResponse>>())!;
     }
@@ -258,7 +295,8 @@ public sealed class AuditLogsApiTests
         var page = await GetAuditLogsAsync(query);
         var item = Assert.Single(page.Items);
 
-        var response = await _fixture.Client.GetAsync($"/api/audit-logs/{item.Id}");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"/api/audit-logs/{item.Id}");
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<AuditLogResponse>())!;
     }

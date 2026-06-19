@@ -8,7 +8,7 @@ public interface IAuditLogRepository
 {
     Task AddAsync(AuditAuditLog auditLog, CancellationToken cancellationToken);
 
-    Task<AuditAuditLog?> GetByIdAsync(Guid auditLogId, CancellationToken cancellationToken);
+    Task<AuditAuditLog?> GetByIdAsync(Guid auditLogId, Guid organizationId, CancellationToken cancellationToken);
 
-    Task<PagedResult<AuditAuditLog>> ListAsync(AuditLogQueryParameters queryParameters, CancellationToken cancellationToken);
+    Task<PagedResult<AuditAuditLog>> ListAsync(Guid organizationId, AuditLogQueryParameters queryParameters, CancellationToken cancellationToken);
 }

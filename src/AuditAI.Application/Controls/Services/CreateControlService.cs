@@ -2,6 +2,7 @@ using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using AuditAI.Application.Controls.Contracts;
@@ -47,6 +48,11 @@ public sealed class CreateControlService
         if (!ControlsCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
         {
             return Result<ControlResponse>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanManageControls(_currentUser))
+        {
+            return Result<ControlResponse>.Forbidden(RoleAuthorization.ControlsManageForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);

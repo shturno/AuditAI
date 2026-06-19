@@ -98,6 +98,24 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
             passwordHasher.HashPassword(TestData.UserPassword),
             UserRole.Auditor,
             TestData.SeedTimestamp);
+        var adminUser = User.Create(
+            TestData.AdminUserId,
+            TestData.OrganizationId,
+            TestData.DepartmentId,
+            "Organization Admin",
+            TestData.AdminUserEmail,
+            passwordHasher.HashPassword(TestData.AdminUserPassword),
+            UserRole.Admin,
+            TestData.SeedTimestamp);
+        var reviewerUser = User.Create(
+            TestData.ReviewerUserId,
+            TestData.OrganizationId,
+            TestData.DepartmentId,
+            "Evidence Reviewer",
+            TestData.ReviewerUserEmail,
+            passwordHasher.HashPassword(TestData.ReviewerUserPassword),
+            UserRole.Reviewer,
+            TestData.SeedTimestamp);
         var otherUser = User.Create(
             TestData.OtherUserId,
             TestData.OtherOrganizationId,
@@ -130,7 +148,7 @@ public sealed class PostgreSqlContainerFixture : IAsyncLifetime
 
         dbContext.Organizations.AddRange(organization, otherOrganization);
         dbContext.Departments.AddRange(department, otherDepartment);
-        dbContext.Users.AddRange(user, otherUser);
+        dbContext.Users.AddRange(user, adminUser, reviewerUser, otherUser);
         dbContext.Controls.AddRange(control, otherControl);
 
         await dbContext.SaveChangesAsync();

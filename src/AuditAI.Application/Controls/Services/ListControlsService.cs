@@ -1,5 +1,6 @@
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using AuditAI.Application.Controls.Contracts;
@@ -32,6 +33,11 @@ public sealed class ListControlsService
         if (!ControlsCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<PagedResult<ControlListItemResponse>>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadControls(_currentUser))
+        {
+            return Result<PagedResult<ControlListItemResponse>>.Forbidden(RoleAuthorization.ControlsReadForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(queryParameters, cancellationToken);

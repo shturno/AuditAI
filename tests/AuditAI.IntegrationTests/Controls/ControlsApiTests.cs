@@ -74,6 +74,25 @@ public sealed class ControlsApiTests
     }
 
     [Fact]
+    public async Task Should_ReturnForbidden_When_ReviewerCreatesControl()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+
+        var response = await client.PostAsJsonAsync("/api/controls", new CreateControlRequest
+        {
+            DepartmentId = TestData.DepartmentId,
+            Code = "CTRL-REVIEW",
+            Category = "Access Management",
+            Title = "Reviewer should not create controls",
+            Description = "Detailed quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Should_ReturnBadRequest_When_DepartmentDoesNotBelongToAuthenticatedOrganization()
     {
         await _fixture.ResetDatabaseAsync();
@@ -195,13 +214,13 @@ public sealed class ControlsApiTests
     }
 
     [Fact]
-    public async Task Should_KeepNonControlEndpointAnonymous_ForNow()
+    public async Task Should_ReturnUnauthorized_When_AuditLogsAreCalledWithoutToken()
     {
         await _fixture.ResetDatabaseAsync();
 
         var response = await _fixture.Client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private static Task<HttpResponseMessage> CreateValidControlAsync(HttpClient client, string code)

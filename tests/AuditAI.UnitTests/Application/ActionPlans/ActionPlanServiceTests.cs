@@ -40,10 +40,44 @@ public sealed class ActionPlanServiceTests
     }
 
     [Fact]
+    public async Task Should_RejectCreateActionPlan_When_CurrentUserIsReviewer()
+    {
+        var organizationId = Guid.NewGuid();
+        var findingId = Guid.NewGuid();
+        var assignedUserId = Guid.NewGuid();
+        var service = new CreateActionPlanService(
+            new FakeActionPlanRepository(),
+            new FakeFindingLookup { FindingOrganizations = { [findingId] = organizationId } },
+            new FakeUserLookup { UserOrganizations = { [assignedUserId] = organizationId } },
+            new FakeAuditLogWriter(),
+            new FakeCurrentUser
+            {
+                IsAuthenticated = true,
+                UserId = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                Role = UserRole.Reviewer
+            },
+            new FakeDateTimeProvider(),
+            new CreateActionPlanRequestValidator());
+
+        var result = await service.ExecuteAsync(new CreateActionPlanRequest
+        {
+            AuditFindingId = findingId,
+            AssignedToUserId = assignedUserId,
+            Title = "Remediate control",
+            Description = "Implement the remediation plan.",
+            DueDate = new FakeDateTimeProvider().UtcNow.AddDays(7)
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsForbidden);
+    }
+
+    [Fact]
     public async Task Should_FailCreateActionPlan_When_FindingBelongsToAnotherOrganization()
     {
         var organizationId = Guid.NewGuid();
-        var currentUser = new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId };
+        var currentUser = new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId, Role = UserRole.Auditor };
         var findingId = Guid.NewGuid();
         var service = new CreateActionPlanService(
             new FakeActionPlanRepository(),
@@ -78,7 +112,7 @@ public sealed class ActionPlanServiceTests
             new FakeFindingLookup { FindingOrganizations = { [findingId] = organizationId } },
             new FakeUserLookup { UserOrganizations = { [assignedUserId] = Guid.NewGuid() } },
             new FakeAuditLogWriter(),
-            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId, Role = UserRole.Auditor },
             new FakeDateTimeProvider(),
             new CreateActionPlanRequestValidator());
 
@@ -108,7 +142,7 @@ public sealed class ActionPlanServiceTests
             new FakeFindingLookup { FindingOrganizations = { [findingId] = organizationId } },
             new FakeUserLookup { UserOrganizations = { [assignedUserId] = organizationId } },
             auditLogWriter,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId, Role = UserRole.Auditor },
             new FakeDateTimeProvider(),
             new CreateActionPlanRequestValidator());
 
@@ -137,7 +171,7 @@ public sealed class ActionPlanServiceTests
 
         var service = new ListActionPlansService(
             repository,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId, Role = UserRole.Auditor },
             new ActionPlanQueryParametersValidator());
 
         var result = await service.ExecuteAsync(new ActionPlanQueryParameters { PageNumber = 1, PageSize = 10 });
@@ -155,7 +189,7 @@ public sealed class ActionPlanServiceTests
 
         var service = new GetActionPlanByIdService(
             repository,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = Guid.NewGuid() });
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = Guid.NewGuid(), Role = UserRole.Auditor });
 
         var result = await service.ExecuteAsync(actionPlan.Id);
 
@@ -178,7 +212,7 @@ public sealed class ActionPlanServiceTests
             repository,
             new FakeUserLookup { UserOrganizations = { [actionPlan.AssignedToUserId] = organizationId } },
             auditLogWriter,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId, Role = UserRole.Auditor },
             clock,
             new UpdateActionPlanRequestValidator());
 
@@ -208,7 +242,7 @@ public sealed class ActionPlanServiceTests
         var service = new ChangeActionPlanStatusService(
             repository,
             auditLogWriter,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId, Role = UserRole.Auditor },
             clock,
             new ChangeActionPlanStatusRequestValidator());
 
@@ -229,7 +263,7 @@ public sealed class ActionPlanServiceTests
 
         public string? Email => null;
 
-        public UserRole? Role => null;
+        public UserRole? Role { get; init; }
 
         public Guid? OrganizationId { get; init; }
 

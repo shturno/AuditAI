@@ -5,6 +5,7 @@ using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using FluentValidation;
@@ -41,6 +42,11 @@ public sealed class UpdateAuditFindingService
         if (!AuditFindingsCurrentUserContext.TryGetActor(_currentUser, out _, out var organizationId))
         {
             return Result<AuditFindingResponse>.Unauthorized(AuditFindingsCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanManageAuditFindings(_currentUser))
+        {
+            return Result<AuditFindingResponse>.Forbidden(RoleAuthorization.AuditFindingsManageForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);

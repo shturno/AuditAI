@@ -14,6 +14,10 @@ internal static class TestData
 
     public static readonly Guid OtherUserId = Guid.Parse("66666666-6666-6666-6666-666666666666");
 
+    public static readonly Guid AdminUserId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+    public static readonly Guid ReviewerUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
     public const string UserEmail = "submitter@auditai.test";
 
     public const string UserPassword = "P@ssword123!";
@@ -21,6 +25,14 @@ internal static class TestData
     public const string OtherUserEmail = "other@auditai.test";
 
     public const string OtherUserPassword = "OtherPassword123!";
+
+    public const string AdminUserEmail = "admin@auditai.test";
+
+    public const string AdminUserPassword = "AdminPassword123!";
+
+    public const string ReviewerUserEmail = "reviewer@auditai.test";
+
+    public const string ReviewerUserPassword = "ReviewerPassword123!";
 
     public static readonly Guid ControlId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 

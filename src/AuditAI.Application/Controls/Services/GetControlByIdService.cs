@@ -1,4 +1,5 @@
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Controls.Contracts;
 using AuditAI.Application.Controls.Interfaces;
@@ -24,6 +25,11 @@ public sealed class GetControlByIdService
         if (!ControlsCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<ControlResponse>.Unauthorized(ControlsCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadControls(_currentUser))
+        {
+            return Result<ControlResponse>.Forbidden(RoleAuthorization.ControlsReadForbiddenMessage);
         }
 
         var control = await _controlRepository.GetByIdAsync(controlId, cancellationToken);

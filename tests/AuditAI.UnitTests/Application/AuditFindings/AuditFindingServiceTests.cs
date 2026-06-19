@@ -51,7 +51,8 @@ public sealed class AuditFindingServiceTests
         {
             IsAuthenticated = true,
             UserId = userId,
-            OrganizationId = organizationId
+            OrganizationId = organizationId,
+            Role = UserRole.Auditor
         };
         var controlLookup = new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } };
         var auditLogWriter = new FakeAuditLogWriter();
@@ -78,6 +79,38 @@ public sealed class AuditFindingServiceTests
     }
 
     [Fact]
+    public async Task Should_RejectCreateAuditFinding_When_CurrentUserIsReviewer()
+    {
+        var repository = new FakeAuditFindingRepository();
+        var controlId = Guid.NewGuid();
+        var organizationId = Guid.NewGuid();
+        var service = new CreateAuditFindingService(
+            repository,
+            new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } },
+            new FakeAuditLogWriter(),
+            new FakeCurrentUser
+            {
+                IsAuthenticated = true,
+                UserId = Guid.NewGuid(),
+                OrganizationId = organizationId,
+                Role = UserRole.Reviewer
+            },
+            new FakeDateTimeProvider(),
+            new CreateAuditFindingRequestValidator());
+
+        var result = await service.ExecuteAsync(new CreateAuditFindingRequest
+        {
+            ControlId = controlId,
+            Title = "Missing approval",
+            Description = "This control has no approval evidence.",
+            Severity = AuditFindingSeverity.High
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsForbidden);
+    }
+
+    [Fact]
     public async Task Should_FailCreateAuditFinding_When_ControlBelongsToAnotherOrganization()
     {
         var repository = new FakeAuditFindingRepository();
@@ -85,7 +118,8 @@ public sealed class AuditFindingServiceTests
         {
             IsAuthenticated = true,
             UserId = Guid.NewGuid(),
-            OrganizationId = Guid.NewGuid()
+            OrganizationId = Guid.NewGuid(),
+            Role = UserRole.Auditor
         };
         var controlLookup = new FakeControlLookup
         {
@@ -130,7 +164,8 @@ public sealed class AuditFindingServiceTests
             {
                 IsAuthenticated = true,
                 UserId = Guid.NewGuid(),
-                OrganizationId = organizationId
+                OrganizationId = organizationId,
+                Role = UserRole.Auditor
             },
             new AuditFindingQueryParametersValidator());
 
@@ -162,7 +197,8 @@ public sealed class AuditFindingServiceTests
             {
                 IsAuthenticated = true,
                 UserId = Guid.NewGuid(),
-                OrganizationId = organizationId
+                OrganizationId = organizationId,
+                Role = UserRole.Auditor
             });
 
         var result = await service.ExecuteAsync(finding.Id);
@@ -185,7 +221,7 @@ public sealed class AuditFindingServiceTests
         var service = new UpdateAuditFindingService(
             repository,
             auditLogWriter,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId, Role = UserRole.Auditor },
             clock,
             new UpdateAuditFindingRequestValidator());
 
@@ -216,7 +252,7 @@ public sealed class AuditFindingServiceTests
             repository,
             new FakeActionPlanRepository(),
             auditLogWriter,
-            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = userId, OrganizationId = organizationId, Role = UserRole.Auditor },
             clock,
             new ChangeAuditFindingStatusRequestValidator());
 
@@ -243,7 +279,7 @@ public sealed class AuditFindingServiceTests
             repository,
             new FakeActionPlanRepository { HasBlockingActionPlans = true },
             new FakeAuditLogWriter(),
-            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId },
+            new FakeCurrentUser { IsAuthenticated = true, UserId = Guid.NewGuid(), OrganizationId = organizationId, Role = UserRole.Auditor },
             clock,
             new ChangeAuditFindingStatusRequestValidator());
 
@@ -264,7 +300,7 @@ public sealed class AuditFindingServiceTests
 
         public string? Email => null;
 
-        public UserRole? Role => null;
+        public UserRole? Role { get; init; }
 
         public Guid? OrganizationId { get; init; }
 

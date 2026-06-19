@@ -17,6 +17,8 @@ public class Result
 
     public bool IsUnauthorized => Error?.Code == "unauthorized";
 
+    public bool IsForbidden => Error?.Code == "forbidden";
+
     public Error? Error { get; }
 
     public IReadOnlyList<ValidationError> ValidationErrors { get; }
@@ -39,6 +41,11 @@ public class Result
     public static Result Unauthorized(string message)
     {
         return Failure("unauthorized", message);
+    }
+
+    public static Result Forbidden(string message)
+    {
+        return Failure("forbidden", message);
     }
 
     public static Result ValidationFailure(IReadOnlyList<ValidationError> validationErrors)

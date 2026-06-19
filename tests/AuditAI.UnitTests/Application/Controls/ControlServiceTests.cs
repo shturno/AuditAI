@@ -41,6 +41,37 @@ public sealed class ControlServiceTests
     }
 
     [Fact]
+    public async Task Should_RejectCreateControl_When_CurrentUserIsReviewer()
+    {
+        var repository = new FakeControlRepository();
+        var organizationId = Guid.NewGuid();
+        var lookup = new FakeControlReferenceLookup
+        {
+            ExistingOrganizationIds = { organizationId }
+        };
+        var service = new CreateControlService(
+            repository,
+            FakeCurrentUser.Authenticated(organizationId, UserRole.Reviewer),
+            lookup,
+            lookup,
+            new FakeAuditLogWriter(),
+            new FakeDateTimeProvider(),
+            new CreateControlRequestValidator());
+
+        var result = await service.ExecuteAsync(new CreateControlRequest
+        {
+            Code = "CTRL-001",
+            Category = "Access Management",
+            Title = "Quarterly access review",
+            Description = "Detailed quarterly access review.",
+            Frequency = ControlFrequency.Quarterly
+        });
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsForbidden);
+    }
+
+    [Fact]
     public async Task Should_CreateControl_Using_CurrentUserOrganization_InsteadOf_RequestOrganization()
     {
         var authenticatedOrganizationId = Guid.NewGuid();
@@ -53,7 +84,7 @@ public sealed class ControlServiceTests
             DepartmentsByOrganization = { [departmentId] = authenticatedOrganizationId }
         };
         var auditLogWriter = new FakeAuditLogWriter();
-        var currentUser = FakeCurrentUser.Authenticated(organizationId: authenticatedOrganizationId);
+        var currentUser = FakeCurrentUser.Authenticated(authenticatedOrganizationId);
         var service = new CreateControlService(
             repository,
             currentUser,
@@ -96,7 +127,7 @@ public sealed class ControlServiceTests
         };
         var service = new CreateControlService(
             repository,
-            FakeCurrentUser.Authenticated(organizationId: authenticatedOrganizationId),
+            FakeCurrentUser.Authenticated(authenticatedOrganizationId),
             lookup,
             lookup,
             new FakeAuditLogWriter(),
@@ -135,7 +166,7 @@ public sealed class ControlServiceTests
             new FakeDateTimeProvider().UtcNow));
         var service = new ListControlsService(
             repository,
-            FakeCurrentUser.Authenticated(organizationId: organizationId),
+            FakeCurrentUser.Authenticated(organizationId),
             new ControlQueryParametersValidator());
 
         var result = await service.ExecuteAsync(new ControlQueryParameters
@@ -167,7 +198,7 @@ public sealed class ControlServiceTests
         repository.StoredControls.Add(control);
         var service = new GetControlByIdService(
             repository,
-            FakeCurrentUser.Authenticated(organizationId: Guid.NewGuid()));
+            FakeCurrentUser.Authenticated(Guid.NewGuid()));
 
         var result = await service.ExecuteAsync(control.Id);
 
@@ -184,7 +215,7 @@ public sealed class ControlServiceTests
         var clock = new FakeDateTimeProvider();
         var repository = new FakeControlRepository();
         var auditLogWriter = new FakeAuditLogWriter();
-        var currentUser = FakeCurrentUser.Authenticated(organizationId: organizationId);
+        var currentUser = FakeCurrentUser.Authenticated(organizationId);
         var control = Control.Create(
             Guid.NewGuid(),
             organizationId,
@@ -238,7 +269,7 @@ public sealed class ControlServiceTests
         var clock = new FakeDateTimeProvider();
         var repository = new FakeControlRepository();
         var auditLogWriter = new FakeAuditLogWriter();
-        var currentUser = FakeCurrentUser.Authenticated(organizationId: organizationId);
+        var currentUser = FakeCurrentUser.Authenticated(organizationId);
         var control = Control.Create(
             Guid.NewGuid(),
             organizationId,
@@ -366,11 +397,13 @@ public sealed class ControlServiceTests
         private FakeCurrentUser(
             bool isAuthenticated,
             Guid? userId,
-            Guid? organizationId)
+            Guid? organizationId,
+            UserRole? role)
         {
             IsAuthenticated = isAuthenticated;
             UserId = userId;
             OrganizationId = organizationId;
+            Role = role;
         }
 
         public bool IsAuthenticated { get; }
@@ -379,20 +412,20 @@ public sealed class ControlServiceTests
 
         public string? Email => "user@auditai.test";
 
-        public UserRole? Role => UserRole.Auditor;
+        public UserRole? Role { get; }
 
         public Guid? OrganizationId { get; }
 
         public Guid? DepartmentId => null;
 
-        public static FakeCurrentUser Authenticated(Guid organizationId)
+        public static FakeCurrentUser Authenticated(Guid organizationId, UserRole role = UserRole.Auditor)
         {
-            return new FakeCurrentUser(true, Guid.NewGuid(), organizationId);
+            return new FakeCurrentUser(true, Guid.NewGuid(), organizationId, role);
         }
 
         public static FakeCurrentUser Unauthenticated()
         {
-            return new FakeCurrentUser(false, null, null);
+            return new FakeCurrentUser(false, null, null, null);
         }
     }
 }

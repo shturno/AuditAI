@@ -87,7 +87,7 @@ public sealed class AuditLogServiceTests
             ControlOrganizations = { [controlId] = organizationId }
         };
         var writer = new FakeAuditLogWriter();
-        var service = new RejectEvidenceService(repository, new FakeCurrentUser(reviewerId, organizationId), lookup, writer, clock, new ReviewEvidenceRequestValidator());
+        var service = new RejectEvidenceService(repository, new FakeCurrentUser(reviewerId, organizationId, UserRole.Reviewer), lookup, writer, clock, new ReviewEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(evidence.Id, new ReviewEvidenceRequest
         {
@@ -155,7 +155,7 @@ public sealed class AuditLogServiceTests
     public async Task Should_ValidateAuditLogListPaginationAndDateRange()
     {
         var repository = new FakeAuditLogRepository();
-        var service = new ListAuditLogsService(repository, new AuditLogQueryParametersValidator());
+        var service = new ListAuditLogsService(repository, new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid(), UserRole.Admin), new AuditLogQueryParametersValidator());
 
         var result = await service.ExecuteAsync(new AuditLogQueryParameters
         {
@@ -169,10 +169,42 @@ public sealed class AuditLogServiceTests
     }
 
     [Fact]
+    public async Task Should_RejectAuditLogRead_When_CurrentUserIsReviewer()
+    {
+        var repository = new FakeAuditLogRepository();
+        var service = new ListAuditLogsService(
+            repository,
+            new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid(), UserRole.Reviewer),
+            new AuditLogQueryParametersValidator());
+
+        var result = await service.ExecuteAsync(new AuditLogQueryParameters());
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsForbidden);
+    }
+
+    [Fact]
+    public async Task Should_AllowAuditLogRead_When_CurrentUserIsAdmin()
+    {
+        var organizationId = Guid.NewGuid();
+        var repository = new FakeAuditLogRepository();
+        repository.StoredLogs.Add(AuditLog.Create(Guid.NewGuid(), organizationId, null, AuditLogAction.ControlCreated, "Control", Guid.NewGuid(), null, new FakeDateTimeProvider().UtcNow));
+        var service = new ListAuditLogsService(
+            repository,
+            new FakeCurrentUser(Guid.NewGuid(), organizationId, UserRole.Admin),
+            new AuditLogQueryParametersValidator());
+
+        var result = await service.ExecuteAsync(new AuditLogQueryParameters());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(organizationId, repository.LastOrganizationId);
+    }
+
+    [Fact]
     public async Task Should_ReturnNotFound_When_AuditLogDoesNotExist()
     {
         var repository = new FakeAuditLogRepository();
-        var service = new GetAuditLogByIdService(repository);
+        var service = new GetAuditLogByIdService(repository, new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid(), UserRole.Admin));
 
         var result = await service.ExecuteAsync(Guid.NewGuid());
 
@@ -194,6 +226,7 @@ public sealed class AuditLogServiceTests
     private sealed class FakeAuditLogRepository : IAuditLogRepository
     {
         public List<AuditLog> StoredLogs { get; } = [];
+        public Guid? LastOrganizationId { get; private set; }
 
         public Task AddAsync(AuditLog auditLog, CancellationToken cancellationToken)
         {
@@ -201,14 +234,16 @@ public sealed class AuditLogServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<AuditLog?> GetByIdAsync(Guid auditLogId, CancellationToken cancellationToken)
+        public Task<AuditLog?> GetByIdAsync(Guid auditLogId, Guid organizationId, CancellationToken cancellationToken)
         {
-            return Task.FromResult(StoredLogs.SingleOrDefault(log => log.Id == auditLogId));
+            return Task.FromResult(StoredLogs.SingleOrDefault(log => log.Id == auditLogId && log.OrganizationId == organizationId));
         }
 
-        public Task<PagedResult<AuditLog>> ListAsync(AuditLogQueryParameters queryParameters, CancellationToken cancellationToken)
+        public Task<PagedResult<AuditLog>> ListAsync(Guid organizationId, AuditLogQueryParameters queryParameters, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new PagedResult<AuditLog>(StoredLogs, StoredLogs.Count, 1, 20));
+            LastOrganizationId = organizationId;
+            var items = StoredLogs.Where(log => log.OrganizationId == organizationId).ToArray();
+            return Task.FromResult(new PagedResult<AuditLog>(items, items.Length, 1, 20));
         }
     }
 
@@ -336,10 +371,11 @@ public sealed class AuditLogServiceTests
 
     private sealed class FakeCurrentUser : ICurrentUser
     {
-        public FakeCurrentUser(Guid userId, Guid organizationId)
+        public FakeCurrentUser(Guid userId, Guid organizationId, UserRole role = UserRole.Auditor)
         {
             UserId = userId;
             OrganizationId = organizationId;
+            Role = role;
         }
 
         private FakeCurrentUser()
@@ -352,7 +388,7 @@ public sealed class AuditLogServiceTests
 
         public string? Email => "user@auditai.test";
 
-        public UserRole? Role => UserRole.Auditor;
+        public UserRole? Role { get; }
 
         public Guid? OrganizationId { get; }
 

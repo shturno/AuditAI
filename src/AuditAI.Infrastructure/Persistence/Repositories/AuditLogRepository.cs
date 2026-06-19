@@ -20,25 +20,25 @@ internal sealed class AuditLogRepository : IAuditLogRepository
         await _dbContext.AuditLogs.AddAsync(auditLog, cancellationToken);
     }
 
-    public async Task<AuditAuditLog?> GetByIdAsync(Guid auditLogId, CancellationToken cancellationToken)
+    public async Task<AuditAuditLog?> GetByIdAsync(Guid auditLogId, Guid organizationId, CancellationToken cancellationToken)
     {
         return await _dbContext.AuditLogs
             .AsNoTracking()
-            .SingleOrDefaultAsync(auditLog => auditLog.Id == auditLogId, cancellationToken);
+            .SingleOrDefaultAsync(
+                auditLog => auditLog.Id == auditLogId &&
+                            auditLog.OrganizationId == organizationId,
+                cancellationToken);
     }
 
     public async Task<PagedResult<AuditAuditLog>> ListAsync(
+        Guid organizationId,
         AuditLogQueryParameters queryParameters,
         CancellationToken cancellationToken)
     {
         var query = _dbContext.AuditLogs
             .AsNoTracking()
+            .Where(auditLog => auditLog.OrganizationId == organizationId)
             .AsQueryable();
-
-        if (queryParameters.OrganizationId.HasValue)
-        {
-            query = query.Where(auditLog => auditLog.OrganizationId == queryParameters.OrganizationId.Value);
-        }
 
         if (queryParameters.UserId.HasValue)
         {

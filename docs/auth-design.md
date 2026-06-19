@@ -26,17 +26,18 @@ Implemented now:
 * ActionPlans endpoints protected with JWT
 * ActionPlans organization scope resolved from `org_id`
 * ActionPlans audit logs now use the authenticated actor
+* AuditLogs read endpoints protected with JWT
+* AuditLogs read scope resolved from `org_id`
+* simple Application-level RBAC enforced for Controls, Evidence, AuditFindings, ActionPlans, and AuditLogs
 
 Not implemented yet:
 
-* public registration
 * user management endpoints
+* public registration
 * refresh tokens
 * password reset
 * MFA
 * external providers
-* protection of all existing business endpoints
-* authenticated actor resolution for AuditLogs read access
 
 ## 1. Recommendation
 
@@ -204,20 +205,26 @@ Authorization should be layered, not pushed into Domain entities.
 
 ### Role plan
 
-Future role direction:
+Current role direction:
 
 * `Admin`
-  * manage users, organizations, departments
-  * view and mutate all audit records inside the organization
+  * read all current protected slices inside the organization
+  * manage controls
+  * submit and review evidence
+  * manage audit findings and action plans
+  * read audit logs
 * `Auditor`
-  * create and update controls
+  * read all current protected slices inside the organization except restricted future admin slices
+  * create, update, and deactivate controls
   * submit evidence
-  * create and update findings
-  * create and update action plans
+  * create, update, and change status for findings
+  * create, update, and change status for action plans
+  * read audit logs
 * `Reviewer`
-  * review evidence
-  * view findings and action plans
-  * limited mutation focused on review flows
+  * read controls, evidence, findings, and action plans
+  * accept and reject evidence
+  * does not create controls, findings, or action plans in the current rollout
+  * does not read audit logs in the current rollout
 
 ### Tenant boundary
 
@@ -229,7 +236,7 @@ Where this should live later:
 
 * request authentication in API
 * use-case enforcement in Application
-* optional policy helpers in API for role checks
+* optional policy helpers in API for authentication ergonomics only
 
 Where this should not live:
 
@@ -323,6 +330,7 @@ Future authentication tests should include:
 * password verification works against stored hash
 * protected endpoint returns `401` without token
 * protected endpoint returns `403` when role is insufficient
+* cross-tenant resource access continues to return `404` where the use case already hides foreign-organization records
 * organization boundary prevents cross-tenant access
 * `AuditLog.UserId` uses current authenticated user
 * JWT claims do not expose sensitive fields
@@ -339,7 +347,7 @@ Recommended test layering:
 Recommended next implementation order:
 
 1. Add role and organization enforcement incrementally.
-2. Decide whether AuditLogs read endpoints should remain anonymous or move behind authentication.
+2. Keep RBAC simple until there is a real need for per-record or department-level authorization.
 3. Consider `is_active` if user deactivation becomes necessary.
 
 This order minimizes disruption and lets the team validate the auth foundation before RBAC and tenant authorization spread across all slices.

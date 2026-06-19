@@ -75,18 +75,41 @@ public sealed class ControlsControllerTests
         Assert.Equal("Access Management", payload.Category);
     }
 
-    private static ControlsController CreateController()
+    [Fact]
+    public async Task Should_ReturnForbidden_When_CurrentUserRoleCannotCreateControl()
+    {
+        var controller = CreateController(UserRole.Reviewer);
+
+        var result = await controller.Create(
+            new CreateControlRequest
+            {
+                OrganizationId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                Code = "CTRL-001",
+                Category = "Access Management",
+                Title = "Quarterly access review",
+                Description = "Detailed quarterly access review.",
+                Frequency = ControlFrequency.Quarterly
+            },
+            CancellationToken.None);
+
+        var forbidden = Assert.IsType<ActionResult<ControlResponse>>(result);
+        var response = Assert.IsType<ObjectResult>(forbidden.Result);
+        Assert.Equal(403, response.StatusCode);
+    }
+
+    private static ControlsController CreateController(UserRole role = UserRole.Auditor)
     {
         var repository = new FakeControlRepository();
         var dateTimeProvider = new FakeDateTimeProvider();
         var lookup = new FakeControlReferenceLookup();
+        var currentUser = FakeCurrentUser.Authenticated(role);
 
         return new ControlsController(
-            new CreateControlService(repository, FakeCurrentUser.Authenticated(), lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new CreateControlRequestValidator()),
-            new GetControlByIdService(repository, FakeCurrentUser.Authenticated()),
-            new ListControlsService(repository, FakeCurrentUser.Authenticated(), new ControlQueryParametersValidator()),
-            new UpdateControlService(repository, FakeCurrentUser.Authenticated(), lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new UpdateControlRequestValidator()),
-            new DeactivateControlService(repository, FakeCurrentUser.Authenticated(), new FakeAuditLogWriter(), dateTimeProvider));
+            new CreateControlService(repository, currentUser, lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new CreateControlRequestValidator()),
+            new GetControlByIdService(repository, currentUser),
+            new ListControlsService(repository, currentUser, new ControlQueryParametersValidator()),
+            new UpdateControlService(repository, currentUser, lookup, lookup, new FakeAuditLogWriter(), dateTimeProvider, new UpdateControlRequestValidator()),
+            new DeactivateControlService(repository, currentUser, new FakeAuditLogWriter(), dateTimeProvider));
     }
 
     private sealed class FakeControlRepository : IControlRepository
@@ -185,10 +208,11 @@ public sealed class ControlsControllerTests
 
     private sealed class FakeCurrentUser : ICurrentUser
     {
-        private FakeCurrentUser(Guid userId, Guid organizationId)
+        private FakeCurrentUser(Guid userId, Guid organizationId, UserRole role)
         {
             UserId = userId;
             OrganizationId = organizationId;
+            Role = role;
         }
 
         public bool IsAuthenticated => true;
@@ -197,17 +221,18 @@ public sealed class ControlsControllerTests
 
         public string? Email => "user@auditai.test";
 
-        public UserRole? Role => UserRole.Auditor;
+        public UserRole? Role { get; }
 
         public Guid? OrganizationId { get; }
 
         public Guid? DepartmentId => null;
 
-        public static FakeCurrentUser Authenticated()
+        public static FakeCurrentUser Authenticated(UserRole role = UserRole.Auditor)
         {
             return new FakeCurrentUser(
                 Guid.Parse("55555555-5555-5555-5555-555555555555"),
-                Guid.Parse("11111111-1111-1111-1111-111111111111"));
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                role);
         }
     }
 }

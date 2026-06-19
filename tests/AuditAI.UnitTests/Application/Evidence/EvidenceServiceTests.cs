@@ -147,7 +147,7 @@ public sealed class EvidenceServiceTests
 
         var result = await new AcceptEvidenceService(
             repository,
-            new FakeCurrentUser(userId, organizationId),
+            new FakeCurrentUser(userId, organizationId, UserRole.Reviewer),
             new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } },
             writer,
             clock,
@@ -158,6 +158,29 @@ public sealed class EvidenceServiceTests
         Assert.Equal(EvidenceStatus.Accepted, result.Value!.Status);
         Assert.Equal(userId, result.Value.ReviewedByUserId);
         Assert.Equal(userId, Assert.Single(writer.Entries).UserId);
+    }
+
+    [Fact]
+    public async Task Should_RejectAcceptEvidence_When_CurrentUserIsAuditor()
+    {
+        var clock = new FakeDateTimeProvider();
+        var controlId = Guid.NewGuid();
+        var organizationId = Guid.NewGuid();
+        var evidence = AuditEvidence.Create(Guid.NewGuid(), controlId, Guid.NewGuid(), "report.pdf", "evidence/report.pdf", clock.UtcNow);
+        var repository = new FakeEvidenceRepository();
+        repository.StoredEvidence.Add(evidence);
+
+        var result = await new AcceptEvidenceService(
+            repository,
+            new FakeCurrentUser(Guid.NewGuid(), organizationId, UserRole.Auditor),
+            new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } },
+            new FakeAuditLogWriter(),
+            clock,
+            new ReviewEvidenceRequestValidator())
+            .ExecuteAsync(evidence.Id, new ReviewEvidenceRequest());
+
+        Assert.False(result.IsSuccess);
+        Assert.True(result.IsForbidden);
     }
 
     [Fact]
@@ -174,7 +197,7 @@ public sealed class EvidenceServiceTests
 
         var result = await new RejectEvidenceService(
             repository,
-            new FakeCurrentUser(userId, organizationId),
+            new FakeCurrentUser(userId, organizationId, UserRole.Reviewer),
             new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } },
             writer,
             clock,
@@ -195,7 +218,7 @@ public sealed class EvidenceServiceTests
     {
         var result = await new RejectEvidenceService(
             new FakeEvidenceRepository(),
-            new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid()),
+            new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid(), UserRole.Reviewer),
             new FakeControlLookup(),
             new FakeAuditLogWriter(),
             new FakeDateTimeProvider(),
@@ -224,7 +247,7 @@ public sealed class EvidenceServiceTests
 
         var result = await new RejectEvidenceService(
             repository,
-            new FakeCurrentUser(userId, organizationId),
+            new FakeCurrentUser(userId, organizationId, UserRole.Reviewer),
             new FakeControlLookup { ControlOrganizations = { [controlId] = organizationId } },
             new FakeAuditLogWriter(),
             clock,
@@ -308,11 +331,12 @@ public sealed class EvidenceServiceTests
 
     private sealed class FakeCurrentUser : ICurrentUser
     {
-        public FakeCurrentUser(Guid userId, Guid organizationId)
+        public FakeCurrentUser(Guid userId, Guid organizationId, UserRole role = UserRole.Auditor)
         {
             IsAuthenticated = true;
             UserId = userId;
             OrganizationId = organizationId;
+            Role = role;
         }
 
         public bool IsAuthenticated { get; }
@@ -321,7 +345,7 @@ public sealed class EvidenceServiceTests
 
         public string? Email => null;
 
-        public UserRole? Role => UserRole.Auditor;
+        public UserRole? Role { get; }
 
         public Guid? OrganizationId { get; }
 

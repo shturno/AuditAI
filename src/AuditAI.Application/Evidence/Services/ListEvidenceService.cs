@@ -1,5 +1,6 @@
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using AuditAI.Application.Evidence.Contracts;
@@ -32,6 +33,11 @@ public sealed class ListEvidenceService
         if (!EvidenceCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<PagedResult<EvidenceListItemResponse>>.Unauthorized(EvidenceCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadEvidence(_currentUser))
+        {
+            return Result<PagedResult<EvidenceListItemResponse>>.Forbidden(RoleAuthorization.EvidenceReadForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(queryParameters, cancellationToken);

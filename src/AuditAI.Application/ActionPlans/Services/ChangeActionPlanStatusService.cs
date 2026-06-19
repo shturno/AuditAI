@@ -5,6 +5,7 @@ using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using AuditAI.Domain.Enums;
@@ -43,6 +44,11 @@ public sealed class ChangeActionPlanStatusService
         if (!ActionPlansCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
         {
             return Result<ActionPlanResponse>.Unauthorized(ActionPlansCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanManageActionPlans(_currentUser))
+        {
+            return Result<ActionPlanResponse>.Forbidden(RoleAuthorization.ActionPlansManageForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);

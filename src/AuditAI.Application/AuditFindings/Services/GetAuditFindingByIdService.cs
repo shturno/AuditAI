@@ -2,6 +2,7 @@ using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Mappers;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 
 namespace AuditAI.Application.AuditFindings.Services;
@@ -24,6 +25,11 @@ public sealed class GetAuditFindingByIdService
         if (!AuditFindingsCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<AuditFindingResponse>.Unauthorized(AuditFindingsCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadAuditFindings(_currentUser))
+        {
+            return Result<AuditFindingResponse>.Forbidden(RoleAuthorization.AuditFindingsReadForbiddenMessage);
         }
 
         var auditFinding = await _auditFindingRepository.GetByIdAsync(auditFindingId, organizationId, cancellationToken);

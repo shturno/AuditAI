@@ -1,10 +1,12 @@
 using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Pagination;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuditAI.Api.Controllers;
 
+[Authorize]
 [Route("api/audit-logs")]
 [Tags("Audit Logs")]
 public sealed class AuditLogsController : ApiControllerBase

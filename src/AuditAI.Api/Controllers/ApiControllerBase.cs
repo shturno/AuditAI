@@ -39,6 +39,16 @@ public abstract class ApiControllerBase : ControllerBase
             });
         }
 
+        if (result.IsForbidden)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Title = "Forbidden.",
+                Detail = result.Error?.Message,
+                Status = StatusCodes.Status403Forbidden
+            });
+        }
+
         return BadRequest(new ProblemDetails
         {
             Title = "Request could not be processed.",

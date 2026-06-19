@@ -91,12 +91,12 @@ public sealed class AuthApiTests
     }
 
     [Fact]
-    public async Task Should_KeepExistingBusinessEndpoint_Anonymous_ForNow()
+    public async Task Should_ReturnUnauthorized_When_ProtectedBusinessEndpoint_IsCalledWithoutToken()
     {
         await _fixture.ResetDatabaseAsync();
 
         var response = await _fixture.Client.GetAsync("/api/audit-logs?pageNumber=1&pageSize=10");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

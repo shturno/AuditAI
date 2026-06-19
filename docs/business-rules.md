@@ -54,15 +54,23 @@ This document outlines the core business rules, entities, and workflows for the 
 ## 4. Role Permissions
 
 *   **Admin**:
-    *   Manage organizations, departments, and users.
-    *   Configure global settings.
+    *   Can read all current business slices inside the organization.
+    *   Can create, update, and deactivate controls.
+    *   Can submit and review evidence.
+    *   Can create, update, and change status for audit findings and action plans.
+    *   Can read audit logs.
 *   **Auditor**:
-    *   Create and update controls.
-    *   Submit evidence.
-    *   Create audit findings and action plans.
+    *   Can read controls, evidence, audit findings, action plans, and audit logs inside the organization.
+    *   Can create, update, and deactivate controls.
+    *   Can submit evidence.
+    *   Can create, update, and change status for audit findings and action plans.
 *   **Reviewer**:
-    *   Review submitted evidence.
-    *   Update the status of evidence (`Accepted` or `Rejected`).
+    *   Can read controls, evidence, audit findings, and action plans inside the organization.
+    *   Can accept and reject evidence.
+    *   Cannot create, update, or deactivate controls.
+    *   Cannot create or update audit findings.
+    *   Cannot create or update action plans.
+    *   Cannot read audit logs in the current rollout.
 
 ## 5. Validation Rules
 
@@ -99,7 +107,9 @@ This document outlines the core business rules, entities, and workflows for the 
 *   Control existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
 *   Control/User existence checks and organization consistency for Audit Finding creation are Application-layer orchestration rules, not Domain rules.
 *   Audit Finding/User existence checks and organization consistency for Action Plan create/update are Application-layer orchestration rules, not Domain rules.
-*   Authenticated tenant authorization is currently implemented for Controls, Evidence, AuditFindings, and ActionPlans. AuditLogs read endpoints remain on their current anonymous/read-only behavior.
+*   Authenticated tenant authorization is currently implemented for Controls, Evidence, AuditFindings, ActionPlans, and AuditLogs.
+*   Organization tenant scoping and role authorization are Application-layer rules enforced before persistence is called where practical.
+*   AuditLogs read endpoints require authentication and are currently limited to `Admin` and `Auditor`.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
 *   Actor resolution for `AuditLog.UserId` is implemented for Controls, Evidence, AuditFindings, and ActionPlans.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.

@@ -5,8 +5,8 @@ This document provides additional notes on the security posture of the AuditAI p
 ## 1. Authentication (JWT)
 
 *   **Current status**: Minimal JWT login is implemented through `POST /api/auth/login`.
-*   **Current rollout stage**: Controls, Evidence, AuditFindings, and ActionPlans endpoints are protected right now. AuditLogs read endpoints remain anonymous during the staged rollout.
-*   **Tenant implication**: Controls, Evidence, AuditFindings, and ActionPlans access are scoped by `org_id` from the JWT, not by request-supplied organization ids.
+*   **Current rollout stage**: Controls, Evidence, AuditFindings, ActionPlans, and AuditLogs read endpoints are protected right now.
+*   **Tenant implication**: Protected slice access is scoped by `org_id` from the JWT, not by request-supplied organization ids.
 *   **Audit log implication**: Controls, Evidence, AuditFindings, and ActionPlans audit logs now resolve `UserId` from the authenticated actor.
 *   **Design reference**: See [docs/auth-design.md](/home/kai/projects/auditai/docs/auth-design.md) for the recommended implementation plan.
 
@@ -17,7 +17,18 @@ This document provides additional notes on the security posture of the AuditAI p
     *   `Admin`
     *   `Auditor`
     *   `Reviewer`
-*   **Implementation**: In ASP.NET Core, this is implemented using the `[Authorize]` attribute, often with a specific role (e.g., `[Authorize(Roles = "Admin")]`). We may also use policy-based authorization for more complex rules.
+*   **Current rule set**:
+    *   Controls list/get: `Admin`, `Auditor`, `Reviewer`
+    *   Controls create/update/deactivate: `Admin`, `Auditor`
+    *   Evidence list/get: `Admin`, `Auditor`, `Reviewer`
+    *   Evidence create: `Admin`, `Auditor`
+    *   Evidence accept/reject: `Admin`, `Reviewer`
+    *   AuditFindings list/get: `Admin`, `Auditor`, `Reviewer`
+    *   AuditFindings create/update/change-status: `Admin`, `Auditor`
+    *   ActionPlans list/get: `Admin`, `Auditor`, `Reviewer`
+    *   ActionPlans create/update/change-status: `Admin`, `Auditor`
+    *   AuditLogs list/get: `Admin`, `Auditor`
+*   **Implementation**: Authentication is enforced in API, and use-case role checks are enforced in Application so the services remain protected even when called outside controllers.
 
 ## 3. Secret Management
 

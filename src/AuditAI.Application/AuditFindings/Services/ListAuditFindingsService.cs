@@ -2,6 +2,7 @@ using AuditAI.Application.AuditFindings.Contracts;
 using AuditAI.Application.AuditFindings.Interfaces;
 using AuditAI.Application.AuditFindings.Mappers;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -32,6 +33,11 @@ public sealed class ListAuditFindingsService
         if (!AuditFindingsCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<PagedResult<AuditFindingListItemResponse>>.Unauthorized(AuditFindingsCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadAuditFindings(_currentUser))
+        {
+            return Result<PagedResult<AuditFindingListItemResponse>>.Forbidden(RoleAuthorization.AuditFindingsReadForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(queryParameters, cancellationToken);

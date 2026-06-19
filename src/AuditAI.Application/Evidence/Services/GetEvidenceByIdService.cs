@@ -1,5 +1,6 @@
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Evidence.Contracts;
 using AuditAI.Application.Evidence.Interfaces;
 using AuditAI.Application.Evidence.Mappers;
@@ -27,6 +28,11 @@ public sealed class GetEvidenceByIdService
         if (!EvidenceCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<EvidenceResponse>.Unauthorized(EvidenceCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadEvidence(_currentUser))
+        {
+            return Result<EvidenceResponse>.Forbidden(RoleAuthorization.EvidenceReadForbiddenMessage);
         }
 
         var evidence = await _evidenceRepository.GetByIdAsync(evidenceId, cancellationToken);

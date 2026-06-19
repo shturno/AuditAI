@@ -2,6 +2,7 @@ using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.ActionPlans.Mappers;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 
 namespace AuditAI.Application.ActionPlans.Services;
@@ -26,6 +27,11 @@ public sealed class GetActionPlanByIdService
         if (!ActionPlansCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<ActionPlanResponse>.Unauthorized(ActionPlansCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadActionPlans(_currentUser))
+        {
+            return Result<ActionPlanResponse>.Forbidden(RoleAuthorization.ActionPlansReadForbiddenMessage);
         }
 
         var actionPlan = await _actionPlanRepository.GetByIdAsync(actionPlanId, organizationId, cancellationToken);

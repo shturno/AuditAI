@@ -69,6 +69,26 @@ public sealed class ActionPlansApiTests
     }
 
     [Fact]
+    public async Task Should_ReturnForbidden_When_ReviewerCreatesActionPlan()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var auditorClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var reviewerClient = await _fixture.CreateAuthenticatedClientAsync(TestData.ReviewerUserEmail, TestData.ReviewerUserPassword);
+        var finding = await CreateFindingAsync(auditorClient, "Finding for reviewer action plan", TestData.ControlId);
+
+        var response = await reviewerClient.PostAsJsonAsync("/api/action-plans", new CreateActionPlanRequest
+        {
+            AuditFindingId = finding.Id,
+            AssignedToUserId = TestData.UserId,
+            Title = "Reviewer should not create action plan",
+            Description = "Plan description",
+            DueDate = TestData.SeedTimestamp.AddDays(10)
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Should_ReturnNotFound_When_CreatingForOtherOrganizationFinding()
     {
         await _fixture.ResetDatabaseAsync();

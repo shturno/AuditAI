@@ -2,6 +2,7 @@ using AuditAI.Application.AuditLogs.Contracts;
 using AuditAI.Application.AuditLogs.Interfaces;
 using AuditAI.Application.AuditLogs.Services;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using AuditAI.Application.Evidence.Contracts;
@@ -44,6 +45,11 @@ public sealed class CreateEvidenceService
         if (!EvidenceCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
         {
             return Result<EvidenceResponse>.Unauthorized(EvidenceCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanSubmitEvidence(_currentUser))
+        {
+            return Result<EvidenceResponse>.Forbidden(RoleAuthorization.EvidenceSubmitForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);

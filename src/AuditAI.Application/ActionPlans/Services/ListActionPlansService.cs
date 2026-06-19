@@ -2,6 +2,7 @@ using AuditAI.Application.ActionPlans.Contracts;
 using AuditAI.Application.ActionPlans.Interfaces;
 using AuditAI.Application.ActionPlans.Mappers;
 using AuditAI.Application.Common.Abstractions;
+using AuditAI.Application.Common.Authorization;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
@@ -32,6 +33,11 @@ public sealed class ListActionPlansService
         if (!ActionPlansCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
         {
             return Result<PagedResult<ActionPlanListItemResponse>>.Unauthorized(ActionPlansCurrentUserContext.UnauthorizedMessage);
+        }
+
+        if (!RoleAuthorization.CanReadActionPlans(_currentUser))
+        {
+            return Result<PagedResult<ActionPlanListItemResponse>>.Forbidden(RoleAuthorization.ActionPlansReadForbiddenMessage);
         }
 
         var validationResult = await _validator.ValidateAsync(queryParameters, cancellationToken);
