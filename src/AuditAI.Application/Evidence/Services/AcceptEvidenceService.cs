@@ -15,23 +15,23 @@ namespace AuditAI.Application.Evidence.Services;
 public sealed class AcceptEvidenceService
 {
     private readonly IEvidenceRepository _evidenceRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IControlLookup _controlLookup;
-    private readonly IUserLookup _userLookup;
     private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<ReviewEvidenceRequest> _validator;
 
     public AcceptEvidenceService(
         IEvidenceRepository evidenceRepository,
+        ICurrentUser currentUser,
         IControlLookup controlLookup,
-        IUserLookup userLookup,
         IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider,
         IValidator<ReviewEvidenceRequest> validator)
     {
         _evidenceRepository = evidenceRepository;
+        _currentUser = currentUser;
         _controlLookup = controlLookup;
-        _userLookup = userLookup;
         _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
@@ -42,6 +42,11 @@ public sealed class AcceptEvidenceService
         ReviewEvidenceRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!EvidenceCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<EvidenceResponse>.Unauthorized(EvidenceCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
@@ -54,6 +59,12 @@ public sealed class AcceptEvidenceService
             return Result<EvidenceResponse>.NotFound("Evidence was not found.");
         }
 
+        var controlOrganizationId = await _controlLookup.GetControlOrganizationIdAsync(evidence.ControlId, cancellationToken);
+        if (!controlOrganizationId.HasValue || controlOrganizationId.Value != organizationId)
+        {
+            return Result<EvidenceResponse>.NotFound("Evidence was not found.");
+        }
+
         if (evidence.Status != EvidenceStatus.Pending)
         {
             return Result<EvidenceResponse>.ValidationFailure(
@@ -62,24 +73,11 @@ public sealed class AcceptEvidenceService
             ]);
         }
 
-        var referenceErrors = await EvidenceReferenceValidation.ValidateReviewerAsync(
-            evidence.ControlId,
-            request.ReviewerUserId,
-            _controlLookup,
-            _userLookup,
-            cancellationToken);
-
-        if (referenceErrors.Count > 0)
-        {
-            return Result<EvidenceResponse>.ValidationFailure(referenceErrors);
-        }
-
-        evidence.Accept(request.ReviewerUserId, _dateTimeProvider.UtcNow);
-        var organizationId = await _controlLookup.GetControlOrganizationIdAsync(evidence.ControlId, cancellationToken);
+        evidence.Accept(userId, _dateTimeProvider.UtcNow);
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
-                organizationId!.Value,
-                request.ReviewerUserId,
+                organizationId,
+                userId,
                 AuditAI.Domain.Enums.AuditLogAction.EvidenceAccepted,
                 nameof(AuditAI.Domain.Entities.Evidence),
                 evidence.Id,

@@ -78,9 +78,9 @@ This document outlines the core business rules, entities, and workflows for the 
 *   `Overdue` Action Plans also block resolution of `Critical` findings until they are completed or cancelled.
 *   A Control must belong to an existing Organization.
 *   If a Control references a Department, that Department must exist and belong to the same Organization as the Control.
-*   Evidence must be submitted by an existing User.
-*   The submitter must belong to the same Organization as the target Control.
-*   Evidence review must validate that the reviewer exists and belongs to the same Organization as the target Control.
+*   Authenticated Evidence submission derives `SubmittedByUserId` from the current user context.
+*   Authenticated Evidence review derives `ReviewerUserId` from the current user context.
+*   Evidence create/review operations must stay inside the authenticated user's Organization.
 *   An Audit Finding must be created against an existing Control.
 *   The creator of an Audit Finding must exist and belong to the same Organization as the target Control.
 *   Audit Findings move through `Open`, `InProgress`, `Resolved`, and `Cancelled` according to domain transition rules.
@@ -96,12 +96,12 @@ This document outlines the core business rules, entities, and workflows for the 
 *   Organization and Department existence checks for Control create/update are Application-layer orchestration rules, not Domain rules.
 *   Authenticated Control operations derive the effective organization from the current JWT `org_id` claim, not from request-supplied organization ids.
 *   Cross-tenant Control access should return `NotFound` instead of disclosing that a record exists in another organization.
-*   Control/User existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
+*   Control existence checks and organization consistency for Evidence create/review are Application-layer orchestration rules, not Domain rules.
 *   Control/User existence checks and organization consistency for Audit Finding creation are Application-layer orchestration rules, not Domain rules.
 *   Audit Finding/User existence checks and organization consistency for Action Plan create/update are Application-layer orchestration rules, not Domain rules.
-*   Authenticated tenant authorization is currently implemented only for the Controls slice. Other slices are still on the staged rollout path.
+*   Authenticated tenant authorization is currently implemented for the Controls and Evidence slices. AuditFindings and ActionPlans are still on the staged rollout path.
 *   `AuditLog` creation is triggered by application workflows; the Domain model should not write logs itself.
-*   Actor resolution for `AuditLog.UserId` is partial before authentication exists: some flows use user ids already present in requests, while other flows currently persist `null`.
+*   Actor resolution for `AuditLog.UserId` is implemented for Controls and Evidence. Other slices are still using the earlier staged behavior until they are protected.
 *   AI behavior must remain advisory. Any future AI workflow orchestration belongs in the Application layer, not the Domain layer.
 
 ## 6. Audit Logging Rules

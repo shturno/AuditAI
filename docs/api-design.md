@@ -129,9 +129,11 @@ Current authentication behavior:
 *   Invalid login credentials return `401 Unauthorized`.
 *   Malformed login requests still return `400 Bad Request`.
 *   Controls endpoints currently require a bearer token.
+*   Evidence endpoints currently require a bearer token.
 *   Controls organization scope comes from JWT `org_id`, even if request or query payloads still contain organization fields for compatibility.
-*   Audit logs for Controls now use the authenticated actor.
-*   Evidence, AuditFindings, ActionPlans, and AuditLogs endpoints are still anonymous in the current staged rollout.
+*   Evidence organization scope comes from JWT `org_id`.
+*   Audit logs for Controls and Evidence now use the authenticated actor.
+*   AuditFindings, ActionPlans, and AuditLogs endpoints are still anonymous in the current staged rollout.
 *   No refresh token, cookie auth, public registration, or password reset flow exists yet.
 
 ## 9. API Behavior for Future AI Endpoints

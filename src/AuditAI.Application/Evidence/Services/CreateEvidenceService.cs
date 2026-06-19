@@ -15,23 +15,23 @@ namespace AuditAI.Application.Evidence.Services;
 public sealed class CreateEvidenceService
 {
     private readonly IEvidenceRepository _evidenceRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IControlLookup _controlLookup;
-    private readonly IUserLookup _userLookup;
     private readonly IAuditLogWriter _auditLogWriter;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IValidator<CreateEvidenceRequest> _validator;
 
     public CreateEvidenceService(
         IEvidenceRepository evidenceRepository,
+        ICurrentUser currentUser,
         IControlLookup controlLookup,
-        IUserLookup userLookup,
         IAuditLogWriter auditLogWriter,
         IDateTimeProvider dateTimeProvider,
         IValidator<CreateEvidenceRequest> validator)
     {
         _evidenceRepository = evidenceRepository;
+        _currentUser = currentUser;
         _controlLookup = controlLookup;
-        _userLookup = userLookup;
         _auditLogWriter = auditLogWriter;
         _dateTimeProvider = dateTimeProvider;
         _validator = validator;
@@ -41,38 +41,36 @@ public sealed class CreateEvidenceService
         CreateEvidenceRequest request,
         CancellationToken cancellationToken = default)
     {
+        if (!EvidenceCurrentUserContext.TryGetActor(_currentUser, out var userId, out var organizationId))
+        {
+            return Result<EvidenceResponse>.Unauthorized(EvidenceCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(request, cancellationToken);
         if (!validationResult.IsValid)
         {
             return Result<EvidenceResponse>.ValidationFailure(validationResult.ToValidationErrors());
         }
 
-        var referenceErrors = await EvidenceReferenceValidation.ValidateCreateAsync(
-            request.ControlId,
-            request.SubmittedByUserId,
-            _controlLookup,
-            _userLookup,
-            cancellationToken);
-
-        if (referenceErrors.Count > 0)
+        var controlOrganizationId = await _controlLookup.GetControlOrganizationIdAsync(request.ControlId, cancellationToken);
+        if (!controlOrganizationId.HasValue || controlOrganizationId.Value != organizationId)
         {
-            return Result<EvidenceResponse>.ValidationFailure(referenceErrors);
+            return Result<EvidenceResponse>.NotFound("Control was not found.");
         }
 
         var evidence = AuditEvidence.Create(
             Guid.NewGuid(),
             request.ControlId,
-            request.SubmittedByUserId,
+            userId,
             request.FileName,
             request.StorageReference,
             _dateTimeProvider.UtcNow);
 
         await _evidenceRepository.AddAsync(evidence, cancellationToken);
-        var organizationId = await _controlLookup.GetControlOrganizationIdAsync(request.ControlId, cancellationToken);
         await _auditLogWriter.WriteAsync(
             new AuditLogWriteEntry(
-                organizationId!.Value,
-                request.SubmittedByUserId,
+                organizationId,
+                userId,
                 AuditAI.Domain.Enums.AuditLogAction.EvidenceSubmitted,
                 nameof(AuditAI.Domain.Entities.Evidence),
                 evidence.Id,

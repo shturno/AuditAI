@@ -10,9 +10,6 @@ public sealed class CreateEvidenceRequestValidator : AbstractValidator<CreateEvi
         RuleFor(x => x.ControlId)
             .NotEmpty();
 
-        RuleFor(x => x.SubmittedByUserId)
-            .NotEmpty();
-
         RuleFor(x => x.FileName)
             .NotEmpty()
             .MaximumLength(255);

@@ -34,11 +34,16 @@ internal sealed class EvidenceRepository : IEvidenceRepository
     }
 
     public async Task<PagedResult<AuditEvidence>> ListAsync(
+        Guid organizationId,
         EvidenceQueryParameters queryParameters,
         CancellationToken cancellationToken)
     {
         var query = _dbContext.Evidence
             .AsNoTracking()
+            .Where(evidence =>
+                _dbContext.Controls.Any(control =>
+                    control.Id == evidence.ControlId &&
+                    control.OrganizationId == organizationId))
             .AsQueryable();
 
         if (queryParameters.ControlId.HasValue)

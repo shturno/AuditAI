@@ -15,6 +15,10 @@ Implemented now:
 * Controls endpoints protected with JWT
 * Controls organization scope resolved from `org_id`
 * Controls audit logs now use the authenticated actor
+* Evidence endpoints protected with JWT
+* Evidence submission/review actors resolved from the authenticated user
+* Evidence organization scope resolved from `org_id`
+* Evidence audit logs now use the authenticated actor
 
 Not implemented yet:
 
@@ -25,7 +29,7 @@ Not implemented yet:
 * MFA
 * external providers
 * protection of all existing business endpoints
-* authenticated actor resolution for non-Control audit slices
+* authenticated actor resolution for non-Control and non-Evidence audit slices
 
 ## 1. Recommendation
 
@@ -185,7 +189,7 @@ Current token behavior:
 
 * short-lived access token
 * no refresh tokens
-* current protected Controls behavior uses `org_id` as the tenant boundary
+* current protected Controls and Evidence behavior uses `org_id` as the tenant boundary
 
 ## 6. Authorization Plan
 
@@ -245,8 +249,8 @@ Important distinction:
 Examples:
 
 * `ActionPlan.AssignedToUserId` remains business data
-* `Evidence.SubmittedByUserId` likely stops coming from request and becomes current actor
-* `Evidence.ReviewerUserId` likely stops coming from request and becomes current actor
+* `Evidence.SubmittedByUserId` now comes from the current actor
+* `Evidence.ReviewerUserId` now comes from the current actor
 * `AuditFinding.CreatedByUserId` likely stops coming from request and becomes current actor
 
 This separation matters:
@@ -258,12 +262,6 @@ This separation matters:
 
 These contracts will likely need refactor once auth exists:
 
-* `CreateEvidenceRequest.SubmittedByUserId`
-  * likely removed from request
-  * derive from `ICurrentUser`
-* `ReviewEvidenceRequest.ReviewerUserId`
-  * likely removed from request
-  * derive from `ICurrentUser`
 * `CreateAuditFindingRequest.CreatedByUserId`
   * likely removed from request
   * derive from `ICurrentUser`
@@ -272,6 +270,12 @@ Likely unchanged:
 
 * `CreateControlRequest`
   * no actor field now, which is fine
+* `CreateEvidenceRequest`
+  * actor field already removed
+  * `SubmittedByUserId` now comes from `ICurrentUser`
+* `ReviewEvidenceRequest`
+  * actor field already removed
+  * `ReviewerUserId` now comes from `ICurrentUser`
 * `CreateActionPlanRequest.AssignedToUserId`
   * keep as business field
 * `UpdateActionPlanRequest.AssignedToUserId`
@@ -328,7 +332,7 @@ Recommended test layering:
 Recommended next implementation order:
 
 1. Stop trusting actor ids from request contracts where actor should be the authenticated user.
-2. Extend authenticated organization scoping to Evidence, AuditFindings, and ActionPlans.
+2. Extend authenticated organization scoping to AuditFindings and ActionPlans.
 3. Add role and organization enforcement incrementally.
 4. Consider `is_active` if user deactivation becomes necessary.
 

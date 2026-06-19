@@ -84,15 +84,13 @@ public sealed class AuditLogServiceTests
         repository.StoredEvidence.Add(evidence);
         var lookup = new FakeEvidenceLookup
         {
-            ControlOrganizations = { [controlId] = organizationId },
-            UserOrganizations = { [reviewerId] = organizationId }
+            ControlOrganizations = { [controlId] = organizationId }
         };
         var writer = new FakeAuditLogWriter();
-        var service = new RejectEvidenceService(repository, lookup, lookup, writer, clock, new ReviewEvidenceRequestValidator());
+        var service = new RejectEvidenceService(repository, new FakeCurrentUser(reviewerId, organizationId), lookup, writer, clock, new ReviewEvidenceRequestValidator());
 
         var result = await service.ExecuteAsync(evidence.Id, new ReviewEvidenceRequest
         {
-            ReviewerUserId = reviewerId,
             RejectionReason = "Missing approval."
         });
 
@@ -254,7 +252,7 @@ public sealed class AuditLogServiceTests
 
         public Task<AuditEvidence?> GetByIdForUpdateAsync(Guid evidenceId, CancellationToken cancellationToken) => Task.FromResult(StoredEvidence.SingleOrDefault(x => x.Id == evidenceId));
 
-        public Task<PagedResult<AuditEvidence>> ListAsync(EvidenceQueryParameters queryParameters, CancellationToken cancellationToken)
+        public Task<PagedResult<AuditEvidence>> ListAsync(Guid organizationId, EvidenceQueryParameters queryParameters, CancellationToken cancellationToken)
         {
             return Task.FromResult(new PagedResult<AuditEvidence>(StoredEvidence, StoredEvidence.Count, 1, 20));
         }
@@ -262,19 +260,13 @@ public sealed class AuditLogServiceTests
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeEvidenceLookup : IControlLookup, IUserLookup
+    private sealed class FakeEvidenceLookup : IControlLookup
     {
         public Dictionary<Guid, Guid> ControlOrganizations { get; } = [];
-        public Dictionary<Guid, Guid> UserOrganizations { get; } = [];
 
         public Task<Guid?> GetControlOrganizationIdAsync(Guid controlId, CancellationToken cancellationToken)
         {
             return Task.FromResult(ControlOrganizations.TryGetValue(controlId, out var organizationId) ? (Guid?)organizationId : null);
-        }
-
-        public Task<Guid?> GetUserOrganizationIdAsync(Guid userId, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(UserOrganizations.TryGetValue(userId, out var organizationId) ? (Guid?)organizationId : null);
         }
     }
 

@@ -7,9 +7,6 @@ public sealed class ReviewEvidenceRequestValidator : AbstractValidator<ReviewEvi
 {
     public ReviewEvidenceRequestValidator()
     {
-        RuleFor(x => x.ReviewerUserId)
-            .NotEmpty();
-
         RuleFor(x => x.RejectionReason)
             .MaximumLength(2000);
     }

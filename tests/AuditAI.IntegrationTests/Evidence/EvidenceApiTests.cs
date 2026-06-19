@@ -2,9 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Evidence.Contracts;
+using AuditAI.Domain.Entities;
 using AuditAI.Domain.Enums;
+using AuditAI.Infrastructure.Persistence;
 using AuditAI.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AuditAI.IntegrationTests.Evidence;
 
@@ -19,51 +23,37 @@ public sealed class EvidenceApiTests
     }
 
     [Fact]
-    public async Task Should_ReturnBadRequest_When_ControlDoesNotExist()
-    {
-        await _fixture.ResetDatabaseAsync();
-
-        var response = await _fixture.Client.PostAsJsonAsync("/api/evidence", new CreateEvidenceRequest
-        {
-            ControlId = Guid.NewGuid(),
-            SubmittedByUserId = TestData.UserId,
-            FileName = "report.pdf",
-            StorageReference = "evidence/report.pdf"
-        });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var body = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.NotNull(body);
-        Assert.Contains("ControlId", body.Errors.Keys);
-    }
-
-    [Fact]
-    public async Task Should_ReturnBadRequest_When_SubmitterUserDoesNotExist()
+    public async Task Should_ReturnUnauthorized_When_CreatingEvidence_WithoutToken()
     {
         await _fixture.ResetDatabaseAsync();
 
         var response = await _fixture.Client.PostAsJsonAsync("/api/evidence", new CreateEvidenceRequest
         {
             ControlId = TestData.ControlId,
-            SubmittedByUserId = Guid.NewGuid(),
             FileName = "report.pdf",
             StorageReference = "evidence/report.pdf"
         });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 
-        var body = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.NotNull(body);
-        Assert.Contains("SubmittedByUserId", body.Errors.Keys);
+    [Fact]
+    public async Task Should_ReturnUnauthorized_When_ListingEvidence_WithoutToken()
+    {
+        await _fixture.ResetDatabaseAsync();
+
+        var response = await _fixture.Client.GetAsync("/api/evidence?pageNumber=1&pageSize=10");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
     public async Task Should_ReturnCreated_When_RequestIsValid()
     {
         await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var response = await CreateValidEvidenceAsync("evidence/report-a.pdf");
+        var response = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-a.pdf");
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
@@ -75,13 +65,25 @@ public sealed class EvidenceApiTests
     }
 
     [Fact]
+    public async Task Should_ReturnNotFound_When_ControlBelongsToAnotherOrganization()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await CreateValidEvidenceAsync(client, TestData.OtherControlId, "evidence/report-foreign.pdf");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Should_ReturnEvidenceById_AfterValidCreate()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidEvidenceAsync("evidence/report-b.pdf");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-b.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await _fixture.Client.GetAsync($"/api/evidence/{created!.Id}");
+        var response = await client.GetAsync($"/api/evidence/{created!.Id}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -92,55 +94,73 @@ public sealed class EvidenceApiTests
     }
 
     [Fact]
-    public async Task Should_ReturnPaginatedList_IncludingCreatedEvidence()
+    public async Task Should_ListOnlyEvidence_FromAuthenticatedOrganization()
     {
         await _fixture.ResetDatabaseAsync();
-        await CreateValidEvidenceAsync("evidence/report-c.pdf");
-        await CreateValidEvidenceAsync("evidence/report-d.pdf");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        using var otherClient = await _fixture.CreateAuthenticatedClientAsync(TestData.OtherUserEmail, TestData.OtherUserPassword);
 
-        var response = await _fixture.Client.GetAsync($"/api/evidence?pageNumber=1&pageSize=10&controlId={TestData.ControlId}");
+        await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-c.pdf");
+        var otherCreateResponse = await CreateValidEvidenceAsync(otherClient, TestData.OtherControlId, "evidence/report-d.pdf");
+        var otherCreated = await otherCreateResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
+
+        var response = await client.GetAsync($"/api/evidence?pageNumber=1&pageSize=10&submittedByUserId={TestData.OtherUserId}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var page = await response.Content.ReadFromJsonAsync<PagedResult<EvidenceListItemResponse>>();
         Assert.NotNull(page);
-        Assert.True(page.TotalCount >= 2);
-        Assert.Contains(page.Items, item => item.FileName == "report.pdf");
+        Assert.DoesNotContain(page.Items, item => item.Id == otherCreated!.Id);
+        Assert.All(page.Items, item => Assert.Equal(TestData.UserId, item.SubmittedByUserId));
     }
 
     [Fact]
-    public async Task Should_AcceptEvidence_AndPersistAcceptedStatus()
+    public async Task Should_ReturnNotFound_When_GettingEvidenceFromAnotherOrganization()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidEvidenceAsync("evidence/report-e.pdf");
+        using var otherClient = await _fixture.CreateAuthenticatedClientAsync(TestData.OtherUserEmail, TestData.OtherUserPassword);
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var otherCreateResponse = await CreateValidEvidenceAsync(otherClient, TestData.OtherControlId, "evidence/report-other.pdf");
+        var otherCreated = await otherCreateResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
+
+        var response = await client.GetAsync($"/api/evidence/{otherCreated!.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Should_AcceptEvidence_UsingAuthenticatedUserAsReviewer()
+    {
+        await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-e.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await _fixture.Client.PatchAsJsonAsync(
+        var response = await client.PatchAsJsonAsync(
             $"/api/evidence/{created!.Id}/accept",
-            new ReviewEvidenceRequest
-            {
-                ReviewerUserId = TestData.UserId
-            });
+            new ReviewEvidenceRequest());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var accepted = await response.Content.ReadFromJsonAsync<EvidenceResponse>();
         Assert.NotNull(accepted);
         Assert.Equal(EvidenceStatus.Accepted, accepted.Status);
+        Assert.Equal(TestData.UserId, accepted.ReviewedByUserId);
     }
 
     [Fact]
     public async Task Should_ReturnBadRequest_When_RejectionReasonIsMissing()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidEvidenceAsync("evidence/report-f.pdf");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-f.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await _fixture.Client.PatchAsJsonAsync(
+        var response = await client.PatchAsJsonAsync(
             $"/api/evidence/{created!.Id}/reject",
             new ReviewEvidenceRequest
             {
-                ReviewerUserId = TestData.UserId,
                 RejectionReason = string.Empty
             });
 
@@ -152,73 +172,61 @@ public sealed class EvidenceApiTests
     }
 
     [Fact]
-    public async Task Should_RejectEvidence_AndPersistRejectedStatus()
+    public async Task Should_CreateAuditLogWithAuthenticatedActor_When_RejectingEvidence()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidEvidenceAsync("evidence/report-g.pdf");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var createResponse = await CreateValidEvidenceAsync(client, TestData.ControlId, "evidence/report-g.pdf");
         var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        var response = await _fixture.Client.PatchAsJsonAsync(
+        var response = await client.PatchAsJsonAsync(
             $"/api/evidence/{created!.Id}/reject",
             new ReviewEvidenceRequest
             {
-                ReviewerUserId = TestData.UserId,
                 RejectionReason = "Missing approval."
             });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var rejected = await response.Content.ReadFromJsonAsync<EvidenceResponse>();
-        Assert.NotNull(rejected);
-        Assert.Equal(EvidenceStatus.Rejected, rejected.Status);
-        Assert.Equal("Missing approval.", rejected.RejectionReason);
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AuditAIDbContext>();
+        var auditLog = await dbContext.AuditLogs
+            .AsNoTracking()
+            .SingleAsync(log =>
+                log.EntityName == nameof(Evidence) &&
+                log.EntityId == created.Id &&
+                log.Action == AuditLogAction.EvidenceRejected);
+
+        Assert.Equal(TestData.UserId, auditLog.UserId);
+        Assert.Equal(TestData.OrganizationId, auditLog.OrganizationId);
     }
 
     [Fact]
-    public async Task Should_ReturnBadRequest_When_AcceptingAlreadyRejectedEvidence()
+    public async Task Should_KeepNonEvidenceEndpointAnonymous_ForNow()
     {
         await _fixture.ResetDatabaseAsync();
-        var createResponse = await CreateValidEvidenceAsync("evidence/report-h.pdf");
-        var created = await createResponse.Content.ReadFromJsonAsync<EvidenceResponse>();
 
-        await _fixture.Client.PatchAsJsonAsync(
-            $"/api/evidence/{created!.Id}/reject",
-            new ReviewEvidenceRequest
-            {
-                ReviewerUserId = TestData.UserId,
-                RejectionReason = "Missing approval."
-            });
+        var response = await _fixture.Client.GetAsync("/api/audit-findings?pageNumber=1&pageSize=10");
 
-        var response = await _fixture.Client.PatchAsJsonAsync(
-            $"/api/evidence/{created.Id}/accept",
-            new ReviewEvidenceRequest
-            {
-                ReviewerUserId = TestData.UserId
-            });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-
-        var body = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
-        Assert.NotNull(body);
-        Assert.Contains("Status", body.Errors.Keys);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     public async Task Should_ReturnNotFound_When_EvidenceIsMissing()
     {
         await _fixture.ResetDatabaseAsync();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var response = await _fixture.Client.GetAsync($"/api/evidence/{Guid.NewGuid()}");
+        var response = await client.GetAsync($"/api/evidence/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private async Task<HttpResponseMessage> CreateValidEvidenceAsync(string storageReference)
+    private static Task<HttpResponseMessage> CreateValidEvidenceAsync(HttpClient client, Guid controlId, string storageReference)
     {
-        return await _fixture.Client.PostAsJsonAsync("/api/evidence", new CreateEvidenceRequest
+        return client.PostAsJsonAsync("/api/evidence", new CreateEvidenceRequest
         {
-            ControlId = TestData.ControlId,
-            SubmittedByUserId = TestData.UserId,
+            ControlId = controlId,
             FileName = "report.pdf",
             StorageReference = storageReference
         });

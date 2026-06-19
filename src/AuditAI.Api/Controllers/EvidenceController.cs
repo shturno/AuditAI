@@ -1,10 +1,12 @@
 using AuditAI.Application.Common.Pagination;
 using AuditAI.Application.Evidence.Contracts;
 using AuditAI.Application.Evidence.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuditAI.Api.Controllers;
 
+[Authorize]
 [Route("api/evidence")]
 [Tags("Evidence")]
 public sealed class EvidenceController : ApiControllerBase

@@ -38,12 +38,12 @@ public sealed class AuditLogsApiTests
     {
         await _fixture.ResetDatabaseAsync();
         var evidence = await CreateEvidenceAsync("evidence/audit-log-reject.pdf");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var rejectResponse = await _fixture.Client.PatchAsJsonAsync(
+        var rejectResponse = await client.PatchAsJsonAsync(
             $"/api/evidence/{evidence.Id}/reject",
             new ReviewEvidenceRequest
             {
-                ReviewerUserId = TestData.UserId,
                 RejectionReason = "Missing approval."
             });
 
@@ -141,12 +141,12 @@ public sealed class AuditLogsApiTests
     {
         await _fixture.ResetDatabaseAsync();
         var evidence = await CreateEvidenceAsync("evidence/audit-log-safe.pdf");
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
-        var rejectResponse = await _fixture.Client.PatchAsJsonAsync(
+        var rejectResponse = await client.PatchAsJsonAsync(
             $"/api/evidence/{evidence.Id}/reject",
             new ReviewEvidenceRequest
             {
-                ReviewerUserId = TestData.UserId,
                 RejectionReason = "Missing approval."
             });
 
@@ -198,10 +198,11 @@ public sealed class AuditLogsApiTests
 
     private async Task<EvidenceResponse> CreateEvidenceAsync(string storageReference)
     {
-        var response = await _fixture.Client.PostAsJsonAsync("/api/evidence", new CreateEvidenceRequest
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.PostAsJsonAsync("/api/evidence", new CreateEvidenceRequest
         {
             ControlId = TestData.ControlId,
-            SubmittedByUserId = TestData.UserId,
             FileName = "report.pdf",
             StorageReference = storageReference
         });

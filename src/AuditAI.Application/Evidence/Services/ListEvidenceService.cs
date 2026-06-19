@@ -1,4 +1,5 @@
 using AuditAI.Application.Common.Pagination;
+using AuditAI.Application.Common.Abstractions;
 using AuditAI.Application.Common.Results;
 using AuditAI.Application.Common.Validation;
 using AuditAI.Application.Evidence.Contracts;
@@ -11,13 +12,16 @@ namespace AuditAI.Application.Evidence.Services;
 public sealed class ListEvidenceService
 {
     private readonly IEvidenceRepository _evidenceRepository;
+    private readonly ICurrentUser _currentUser;
     private readonly IValidator<EvidenceQueryParameters> _validator;
 
     public ListEvidenceService(
         IEvidenceRepository evidenceRepository,
+        ICurrentUser currentUser,
         IValidator<EvidenceQueryParameters> validator)
     {
         _evidenceRepository = evidenceRepository;
+        _currentUser = currentUser;
         _validator = validator;
     }
 
@@ -25,13 +29,18 @@ public sealed class ListEvidenceService
         EvidenceQueryParameters queryParameters,
         CancellationToken cancellationToken = default)
     {
+        if (!EvidenceCurrentUserContext.TryGetOrganization(_currentUser, out var organizationId))
+        {
+            return Result<PagedResult<EvidenceListItemResponse>>.Unauthorized(EvidenceCurrentUserContext.UnauthorizedMessage);
+        }
+
         var validationResult = await _validator.ValidateAsync(queryParameters, cancellationToken);
         if (!validationResult.IsValid)
         {
             return Result<PagedResult<EvidenceListItemResponse>>.ValidationFailure(validationResult.ToValidationErrors());
         }
 
-        var page = await _evidenceRepository.ListAsync(queryParameters, cancellationToken);
+        var page = await _evidenceRepository.ListAsync(organizationId, queryParameters, cancellationToken);
         var items = page.Items.Select(EvidenceResponseMapper.ToListItem).ToArray();
 
         return Result<PagedResult<EvidenceListItemResponse>>.Success(

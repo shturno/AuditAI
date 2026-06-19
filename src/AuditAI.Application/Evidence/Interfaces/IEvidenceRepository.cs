@@ -12,7 +12,10 @@ public interface IEvidenceRepository
 
     Task<AuditEvidence?> GetByIdForUpdateAsync(Guid evidenceId, CancellationToken cancellationToken);
 
-    Task<PagedResult<AuditEvidence>> ListAsync(EvidenceQueryParameters queryParameters, CancellationToken cancellationToken);
+    Task<PagedResult<AuditEvidence>> ListAsync(
+        Guid organizationId,
+        EvidenceQueryParameters queryParameters,
+        CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
